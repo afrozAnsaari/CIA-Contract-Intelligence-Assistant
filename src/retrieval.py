@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .chunking import Chunk, chunk_corpus
+from .chunking import PARA_RE, SENT_RE, Chunk, chunk_corpus
 from .config import index_fingerprint, resolve_path
-from .text import make_tokenizer, split_query, title_from_document_id, tokenize
+from .expansion import EXPANSION_FUNCTION_WORDS, expansion_phrases
+from .text import GENERIC_LEGAL_TERMS, make_tokenizer, split_query, title_from_document_id, tokenize
 
 
 class BM25:
@@ -45,13 +46,15 @@ class BM25:
         df = len(self.postings[term][0]) if term in self.postings else 0
         return math.log(1.0 + (self.n - df + 0.5) / (df + 0.5))
 
-    def scores(self, query_tokens: list[str]) -> np.ndarray:
+    def scores(self, query_tokens: list[str], weights: dict[str, float] | None = None) -> np.ndarray:
+        """BM25 over unique query terms; optional per-term weights (default 1.0)."""
         s = np.zeros(self.n, dtype=np.float64)
         for term in dict.fromkeys(query_tokens):  # unique, order-preserving
             if term not in self.postings:
                 continue
             ids, tfs = self.postings[term]
-            s[ids] += self.idf(term) * tfs * (self.k1 + 1.0) / (tfs + self.norm[ids])
+            w = 1.0 if weights is None else float(weights.get(term, 1.0))
+            s[ids] += w * self.idf(term) * tfs * (self.k1 + 1.0) / (tfs + self.norm[ids])
         return s
 
     def upper_bound(self, query_tokens: list[str]) -> float:
@@ -79,6 +82,7 @@ class RetrievalOutput:
     routed_documents: list[str] = field(default_factory=list)
     unresolved_contract: bool = False  # query names no contract and query.require_contract is on
     contract_candidates: list[str] = field(default_factory=list)  # suggestions when unresolved
+    ranking_terms: dict[str, float] = field(default_factory=dict)  # debug: ranking term -> weight
 
 
 class DenseEncoder:
@@ -213,6 +217,24 @@ class Index:
             signals["chunk_full_bm25_norm"] = float(fbm.max() / fub) if fub > 0 and len(fbm) else 0.0
         else:
             signals["chunk_full_bm25_norm"] = signals["chunk_bm25_norm"]
+        # Split normalisation: preamble and question may be matched by different chunks.
+        if preamble and qcfg["mode"] == "split":
+            pq, qq = self.tok(preamble), self.tok(question)
+            pub, qub = self.bm25.upper_bound(pq), self.bm25.upper_bound(qq)
+            ps = float(np.where(mask, self.bm25.scores(pq), 0.0).max()) if len(bm) else 0.0
+            qs = float(np.where(mask, self.bm25.scores(qq), 0.0).max()) if len(bm) else 0.0
+            signals["chunk_split_bm25_norm"] = (ps + qs) / (pub + qub) if pub + qub > 0 else 0.0
+            # Contract-identity confidence: how well the preamble matches its best chunk
+            # (normally the header/recitals) of the routed contract.
+            signals["preamble_bm25_norm"] = ps / pub if pub > 0 else 0.0
+        else:
+            signals["chunk_split_bm25_norm"] = signals["chunk_full_bm25_norm"]
+            # No preamble: identity is given explicitly (document_id) or comes from routing.
+            signals["preamble_bm25_norm"] = 1.0 if document_id is not None else signals.get("doc_bm25_norm", 0.0)
+        # Ranking query: typed terms (optionally minus generic template words) + weighted expansion.
+        rank_tokens, rank_weights = self._ranking_terms(chunk_q, question if preamble else query)
+        if rank_tokens != cq or rank_weights:
+            bm = self.bm25.scores(rank_tokens, rank_weights) if rank_tokens else bm
         cand = np.flatnonzero(mask)
 
         method = rcfg["method"]
@@ -240,7 +262,73 @@ class Index:
                 scores = fused
 
         passages = self._select(ranked, scores, k)
-        return RetrievalOutput(passages=passages, signals=signals, routed_documents=routed)
+        if rcfg["refine"]["enabled"]:
+            passages = [self._refine(p, rank_tokens, rank_weights) for p in passages]
+        return RetrievalOutput(passages=passages, signals=signals, routed_documents=routed,
+                               ranking_terms={t: float(rank_weights.get(t, 1.0)) for t in rank_tokens})
+
+    # -- ranking query & passage refinement --------------------------------------------------
+    def _ranking_terms(self, chunk_q: str, question: str) -> tuple[list[str], dict[str, float]]:
+        qcfg = self.cfg["query"]
+        tokens = self.tok(chunk_q)
+        if qcfg.get("drop_generic_terms"):
+            generic = set(self.tok(" ".join(sorted(GENERIC_LEGAL_TERMS))))
+            kept = [t for t in tokens if t not in generic]
+            tokens = kept or tokens  # never drop the whole query
+        weights: dict[str, float] = {}
+        if qcfg.get("expand"):
+            w = float(qcfg.get("expansion_weight", 0.5))
+            typed = set(tokens)
+            skip = (set(self.tok(" ".join(sorted(EXPANSION_FUNCTION_WORDS))))
+                    if qcfg.get("expansion_skip_function_words") else set())
+            for phrase in expansion_phrases(question):
+                for t in self.tok(phrase):
+                    if t in skip:
+                        continue
+                    if t in typed or t in weights:
+                        continue
+                    weights[t] = w
+                    tokens.append(t)
+        return tokens, weights
+
+    def _refine(self, p: Passage, tokens: list[str], weights: dict[str, float]) -> Passage:
+        """Shrink p to the contiguous sentence run (<= max_chars) with the most query-term weight.
+
+        Units are sentences/paragraphs inside [start, end); the window score is the sum over
+        DISTINCT matched terms of weight * idf. Ties: shorter window, then earlier. If no
+        unit matches a query term, the passage is returned unchanged.
+        """
+        max_chars = int(self.cfg["retrieval"]["refine"]["max_chars"])
+        text = self.documents[p.document_id]
+        s0, e0 = p.start_offset, p.end_offset
+        if e0 - s0 <= max_chars:
+            return p
+        cuts = sorted({s0, e0} | {s0 + m.end() for m in SENT_RE.finditer(text[s0:e0])}
+                      | {s0 + m.end() for m in PARA_RE.finditer(text[s0:e0])})
+        units = []
+        for a, b in zip(cuts, cuts[1:]):
+            while a < b and text[a].isspace():
+                a += 1
+            while b > a and text[b - 1].isspace():
+                b -= 1
+            if b > a:
+                units.append((a, b, set(self.tok(text[a:b]))))
+        qset = {t: float(weights.get(t, 1.0)) * self.bm25.idf(t) for t in dict.fromkeys(tokens)}
+        best = None
+        for i in range(len(units)):
+            covered: set[str] = set()
+            for j in range(i, len(units)):
+                if units[j][1] - units[i][0] > max_chars:
+                    break
+                covered |= units[j][2]
+                sc = sum(v for t, v in qset.items() if t in covered)
+                key = (round(sc, 9), -(units[j][1] - units[i][0]), -units[i][0])
+                if sc > 0 and (best is None or key > best[0]):
+                    best = (key, units[i][0], units[j][1])
+        if best is None:
+            return p
+        _, a, b = best
+        return Passage(p.rank, p.document_id, a, b, text[a:b], p.score, p.chunk_id)
 
     def _select(self, ranked: list[int], scores: dict[int, float], k: int) -> list[Passage]:
         """Take top-k applying the same-document overlap policy (keep | skip | trim)."""

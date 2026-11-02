@@ -167,3 +167,107 @@ def test_evaluation_records_contract_not_identified(tiny):
     neg = [r for r in res["per_query"] if not r["answerable"]]
     assert neg and all(r["abstained"] for r in neg)
     assert {r["abstention_reason"] for r in neg} == {"contract_not_identified"}  # fixture negatives name no contract
+
+
+# --- document filter must not pass vacuously ---------------------------------------------
+def _split_pipe(cfg, ds, **extra):
+    return Pipeline(apply_overrides(cfg, {**SPLIT, "query.require_contract": True, **extra}), ds.documents)
+
+
+def test_document_filter_alias_and_full_id_nonempty(tiny):
+    cfg, ds = tiny
+    p = _split_pipe(cfg, ds)
+    q = "What is the governing law for this contract?"
+    by_alias = p.search(q, 5, document="AlphaCo")
+    by_id = p.search(q, 5, document="cuad/AlphaCo_License Agreement.txt")
+    assert by_alias.passages, "known answerable (contract, question) must return evidence"
+    assert by_alias.passages == by_id.passages
+    assert all(x["document_id"] == "cuad/AlphaCo_License Agreement.txt" for x in by_alias.passages)
+    assert any("governed by the laws" in x["text"] for x in by_alias.passages)
+
+
+def test_document_filter_with_no_relevant_passages_returns_nothing_else(tiny):
+    """Zero results ARE the expected behaviour here (the contract has no insurance clause):
+    the test asserts that nothing from any other contract leaks in, not that evidence exists."""
+    cfg, ds = tiny
+    r = _split_pipe(cfg, ds).search("What are the insurance requirements?", 5, document="AlphaCo")
+    # AlphaCo has no insurance clause: either abstain or only AlphaCo passages, never BetaInc's.
+    assert all(x["document_id"] == "cuad/AlphaCo_License Agreement.txt" for x in r.passages)
+
+
+def test_document_filter_overrides_contract_named_in_query(tiny):
+    cfg, ds = tiny
+    q = "Consider the Supply Agreement between BetaInc Corp. and Delta Stores; What is the governing law?"
+    r = _split_pipe(cfg, ds).search(q, 5, document="AlphaCo")
+    assert r.passages and all(x["document_id"] == "cuad/AlphaCo_License Agreement.txt" for x in r.passages)
+
+
+# --- ranking-query processing ------------------------------------------------------------
+def test_generic_terms_and_expansion_change_ranking_only(tiny):
+    cfg, ds = tiny
+    q = "Consider the Supply Agreement between BetaInc Corp. and Delta Stores; Is there a minimum commitment in this contract?"
+    base = _split_pipe(cfg, ds).retrieve(q, 5)
+    tuned = _split_pipe(cfg, ds, **{"query.drop_generic_terms": True, "query.expand": True}).retrieve(q, 5)
+    assert base.signals == tuned.signals  # abstention signals use the unmodified query
+    idx = _split_pipe(cfg, ds, **{"query.drop_generic_terms": True, "query.expand": True}).index
+    toks, weights = idx._ranking_terms("Is there a minimum commitment in this contract?",
+                                       "Is there a minimum commitment in this contract?")
+    assert "contract" not in toks and weights and all(0 < w < 1 for w in weights.values())
+    assert "minimum" in tuned.passages[0].text.lower()
+
+
+def test_expansion_rules_are_question_driven():
+    from src.expansion import expansion_phrases
+    assert "books" in expansion_phrases("What are the audit rights under this contract?")
+    assert expansion_phrases("What is the capital city of Mongolia?") == []
+
+
+def test_refined_passages_are_exact_short_and_relevant(tiny):
+    cfg, ds = tiny
+    p = _split_pipe(cfg, ds, **{"chunking.max_chars": 400, "chunking.overlap_chars": 0,
+                                "retrieval.refine.enabled": True, "retrieval.refine.max_chars": 120})
+    q = "Consider the Supply Agreement between BetaInc Corp. and Delta Stores; Can this contract be terminated for convenience?"
+    out = p.retrieve(q, 5)
+    assert out.passages
+    for x in out.passages:
+        assert ds.documents[x.document_id][x.start_offset:x.end_offset] == x.text
+    top = out.passages[0]
+    assert top.end_offset - top.start_offset <= 120 and "convenience" in top.text.lower()
+
+
+def test_split_signal_equals_full_without_preamble(tiny):
+    cfg, ds = tiny
+    out = _split_pipe(cfg, ds).retrieve("governing law", 3, document_id="cuad/AlphaCo_License Agreement.txt")
+    assert out.signals["chunk_split_bm25_norm"] == out.signals["chunk_full_bm25_norm"]
+    named = _split_pipe(cfg, ds).retrieve(
+        "Consider the License Agreement between AlphaCo Inc. and Gamma LLC; What is the governing law?", 3)
+    assert 0 < named.signals["chunk_split_bm25_norm"] < 1
+
+
+# --- query refinement: debug record, original query untouched, routing unaffected -------------
+def test_ranking_terms_recorded_and_query_untouched(tiny):
+    cfg, ds = tiny
+    q = "Consider the Supply Agreement between BetaInc Corp. and Delta Stores; What are the audit rights under this contract?"
+    p = _split_pipe(cfg, ds, **{"query.drop_generic_terms": True, "query.expand": True})
+    r = p.search(q, 5)
+    assert r.query == q  # the user's question is never rewritten
+    exp = {t: w for t, w in r.ranking_terms.items() if w < 1.0}
+    assert exp and set(exp.values()) == {0.5} and p.index.tok("books")[0] in exp  # terms + weights recorded
+    assert "contract" not in r.ranking_terms  # generic template term dropped from ranking only
+    plain = _split_pipe(cfg, ds).retrieve(q, 5)
+    assert p.retrieve(q, 5).routed_documents == plain.routed_documents  # routing unaffected
+
+
+def test_expansion_skips_function_words_when_enabled(tiny):
+    cfg, ds = tiny
+    q = "Can this contract be terminated for convenience?"
+    on = _split_pipe(cfg, ds, **{"query.expand": True, "query.expansion_skip_function_words": True})
+    off = _split_pipe(cfg, ds, **{"query.expand": True})
+    any_tok = off.index.tok("any")[0]
+    assert any_tok in off.index._ranking_terms(q, q)[1]
+    assert any_tok not in on.index._ranking_terms(q, q)[1]
+
+
+def test_generic_term_removal_keeps_negation_and_exception_words():
+    from src.text import GENERIC_LEGAL_TERMS
+    assert not GENERIC_LEGAL_TERMS & {"not", "no", "except", "exception", "unless", "only", "limit", "without"}

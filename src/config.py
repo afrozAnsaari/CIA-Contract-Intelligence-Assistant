@@ -46,12 +46,20 @@ DEFAULTS: dict[str, Any] = {
         # split mode only: if the query names no contract, abstain with a clarification
         # ("contract_not_identified" + suggestions) instead of routing to an arbitrary contract.
         "require_contract": False,
+        # Ranking-query processing (the abstention signals always use the unmodified query):
+        "drop_generic_terms": False,  # drop text.GENERIC_LEGAL_TERMS from the ranking query
+        "expand": False,  # add src/expansion.py clause vocabulary to the ranking query
+        "expansion_weight": 0.5,  # BM25 weight of expansion terms (typed terms weigh 1.0)
+        "expansion_skip_function_words": False,  # drop expansion.EXPANSION_FUNCTION_WORDS from expansions
     },
     "retrieval": {
         "method": "bm25",  # bm25 | dense | hybrid
         "max_k": 64,  # deepest prefix that is ever evaluated
         "overlap_policy": "skip",  # keep | skip | trim  (same-document overlapping passages)
         "min_trimmed_chars": 50,
+        # Passage refinement: shrink each returned passage to the contiguous run of sentences
+        # (<= max_chars) that covers the most ranking-query term weight. Exact source offsets.
+        "refine": {"enabled": False, "max_chars": 600},
         "index_doc_title": False,  # prepend file-name tokens to the *indexing* text only
         "bm25": {"k1": 1.5, "b": 0.75},
         "dense": {
@@ -70,7 +78,8 @@ DEFAULTS: dict[str, Any] = {
     },
     "abstention": {
         "enabled": True,
-        # Signal options: chunk_bm25_norm | chunk_full_bm25_norm | doc_bm25_norm | dense_max_cos | doc_and_chunk
+        # Signal options: chunk_bm25_norm | chunk_full_bm25_norm | chunk_split_bm25_norm |
+        #                 doc_bm25_norm | dense_max_cos | doc_and_chunk
         "signal": "chunk_bm25_norm",
         "threshold": 0.0,  # abstain iff signal < threshold (equality => answer)
         "doc_threshold": 0.0,  # only used by doc_and_chunk (applies to doc_bm25_norm)
@@ -152,10 +161,12 @@ def validate_config(cfg: dict) -> None:
     if q["mode"] not in {"full", "split"} or q["chunk_query"] not in {"full", "question"}:
         raise ValueError("query.mode must be full|split and query.chunk_query full|question")
     a = cfg["abstention"]
-    if a["signal"] not in {"chunk_bm25_norm", "chunk_full_bm25_norm", "doc_bm25_norm", "dense_max_cos",
-                           "doc_and_chunk"}:
+    if a["signal"] not in {"chunk_bm25_norm", "chunk_full_bm25_norm", "chunk_split_bm25_norm", "doc_bm25_norm",
+                           "dense_max_cos", "doc_and_chunk", "identity_and_question"}:
         raise ValueError(f"Unknown abstention.signal {a['signal']!r}")
-    if a["signal"] in {"doc_bm25_norm", "doc_and_chunk"} and not r["doc_routing"]["enabled"]:
+    if a["signal"] == "identity_and_question" and q["mode"] != "split":
+        raise ValueError("abstention.signal identity_and_question requires query.mode: split")
+    if a["signal"] in {"doc_bm25_norm", "doc_and_chunk", "identity_and_question"} and not r["doc_routing"]["enabled"]:
         raise ValueError(f"abstention.signal {a['signal']} requires retrieval.doc_routing.enabled")
     if a["signal"] == "dense_max_cos" and r["method"] == "bm25":
         raise ValueError("abstention.signal dense_max_cos requires method dense or hybrid")

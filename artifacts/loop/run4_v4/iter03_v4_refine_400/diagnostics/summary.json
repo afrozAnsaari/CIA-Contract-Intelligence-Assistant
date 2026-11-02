@@ -1,0 +1,16 @@
+{
+  "config": "iter03_v4_refine_400",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 31,
+    "correct_abstention": 28,
+    "false_abstention": 5,
+    "irrelevant_extra": 1,
+    "low_rank": 6,
+    "ok": 14,
+    "partial_span": 13,
+    "wrong_section": 70
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 126
+}

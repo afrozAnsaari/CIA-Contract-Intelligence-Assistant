@@ -1,0 +1,17 @@
+mode,k,precision,recall,f1,n_queries
+retrieval,1,0.2464,0.5508,0.3108,140
+retrieval,2,0.1827,0.6524,0.2636,140
+retrieval,4,0.1210,0.7868,0.1958,140
+retrieval,5,0.1049,0.8095,0.1743,140
+retrieval,8,0.0757,0.8651,0.1332,140
+retrieval,16,0.0476,0.9186,0.0877,140
+retrieval,32,0.0358,0.9346,0.0667,140
+retrieval,64,0.0323,0.9517,0.0602,140
+retrieval_with_abstention,1,0.2416,0.5309,0.3036,140
+retrieval_with_abstention,2,0.1802,0.6325,0.2594,140
+retrieval_with_abstention,4,0.1196,0.7669,0.1933,140
+retrieval_with_abstention,5,0.1038,0.7896,0.1723,140
+retrieval_with_abstention,8,0.0749,0.8436,0.1316,140
+retrieval_with_abstention,16,0.0471,0.8972,0.0867,140
+retrieval_with_abstention,32,0.0353,0.9112,0.0656,140
+retrieval_with_abstention,64,0.0319,0.9283,0.0594,140

@@ -86,6 +86,9 @@ def print_result(res, as_json: bool) -> None:
             print(f"  - {c}")
         print(f"\n{DISCLAIMER}")
         return
+    expanded = {t: w for t, w in res.ranking_terms.items() if w < 1.0}
+    if expanded:
+        print("Ranking-query expansion terms (weight): " + ", ".join(f"{t}({w:g})" for t, w in expanded.items()))
     if res.abstained:
         print(f"ABSTAINED: no sufficiently relevant evidence found "
               f"(reason={res.abstention_reason}; {res.signal_text()})")

@@ -1,0 +1,16 @@
+{
+  "config": "iter01_v4_drop_generic_terms",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 9,
+    "correct_abstention": 28,
+    "false_abstention": 5,
+    "irrelevant_extra": 35,
+    "low_rank": 19,
+    "ok": 26,
+    "partial_span": 12,
+    "wrong_section": 34
+  },
+  "dominant_answerable_failure": "irrelevant_extra",
+  "n_failures": 114
+}

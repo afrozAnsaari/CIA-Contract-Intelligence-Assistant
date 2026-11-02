@@ -133,3 +133,45 @@ def test_streamlit_invalid_config_is_controlled(monkeypatch):
     at = AppTest.from_file(str(REPO_ROOT / "app.py"), default_timeout=60).run()
     assert not at.exception          # no unhandled traceback
     assert at.error                  # a controlled error message is shown
+
+
+@real_data
+def test_real_document_filter_papajohns_governing_law():
+    p = Pipeline.from_config("configs/final.yaml")
+    r = p.search("What is the governing law for this contract?", 5, document="PapaJohns")
+    assert r.passages, "known answerable contract/question must return passages"
+    assert all("PapaJohns" in x["document_id"] for x in r.passages)
+    assert any("Delaware" in x["text"] for x in r.passages)
+
+
+# Train-split regression cases from the six-failure audit (never test-split queries).
+FIXED_BY_QUERY_REFINEMENT = ["cuad-0f789ebcf3", "cuad-05251665f3", "cuad-3fdb534e55", "cuad-5fce387d80"]
+
+
+def _gold_rank(pipe, q):
+    out = pipe.retrieve(q.query, 64)
+    return next((x.rank for x in out.passages if any(
+        x.document_id == g.document_id and x.start_offset < g.end and g.start < x.end_offset for g in q.gold)), None)
+
+
+@real_data
+@pytest.mark.parametrize("qid", FIXED_BY_QUERY_REFINEMENT)
+def test_real_query_refinement_fixes_audited_failures(qid):
+    from src.data import load_dataset
+    p = Pipeline.from_config("configs/candidate_v4.yaml")
+    q = next(q for q in load_dataset(p.cfg).queries if q.qid == qid)
+    assert q.split == "train"
+    r = p.search(q.query, 5)
+    assert not r.abstained and _gold_rank(p, q) <= 5
+    for x in r.passages:  # offsets stay exact
+        assert p.documents[x["document_id"]][x["start_offset"]:x["end_offset"]] == x["text"]
+
+
+@real_data
+@pytest.mark.xfail(strict=True, reason="known limitation: BicycleTX IP (E1) false abstention; lexical "
+                   "signals score its unanswerable counterpart unans-025 higher (REPORT §11)")
+def test_real_bicycletx_ip_is_answered():
+    p = Pipeline.from_config("configs/candidate_v4.yaml")
+    r = p.search("Consider the Service Agreement between BicycleTX Ltd and Nigel Crockett for Chief Business "
+                 "Officer Position; How is intellectual property ownership assigned in this contract?", 5)
+    assert not r.abstained

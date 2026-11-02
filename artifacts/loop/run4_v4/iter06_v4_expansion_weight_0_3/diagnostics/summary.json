@@ -1,0 +1,16 @@
+{
+  "config": "iter06_v4_expansion_weight_0_3",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 13,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "irrelevant_extra": 43,
+    "low_rank": 18,
+    "ok": 35,
+    "partial_span": 10,
+    "wrong_section": 18
+  },
+  "dominant_answerable_failure": "irrelevant_extra",
+  "n_failures": 105
+}
