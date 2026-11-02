@@ -1,1 +1,3 @@
 {"run": 1, "config_name": "provisional", "config_fingerprint": "d64c5b4fdccee54c", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/provisional_test_20261102-144230", "timestamp": "2026-11-02T09:12:30+00:00"}
+{"run": 2, "config_name": "overlap_up", "config_fingerprint": "3254f317b4c41e2c", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/overlap_up_test_20261102-153405", "timestamp": "2026-11-02T10:04:05+00:00"}
+{"run": 3, "config_name": "baseline", "config_fingerprint": "c41401f0e5415a5b", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/baseline_test_20261102-153427", "timestamp": "2026-11-02T10:04:27+00:00"}

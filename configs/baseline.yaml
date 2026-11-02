@@ -1,5 +1,3 @@
-# Baseline: BM25 over paragraph-aware ~1000-char chunks with 150-char overlap.
-# Initial hypothesis only; alternatives are compared by the improvement loop (train only).
 name: baseline
 status: baseline
 chunking:
@@ -15,9 +13,11 @@ query:
 retrieval:
   method: bm25
   overlap_policy: skip
-  bm25: {k1: 1.5, b: 0.75}
+  bm25:
+    k1: 1.5
+    b: 0.75
 abstention:
   enabled: true
   signal: chunk_bm25_norm
-  threshold: 0.0      # replaced by the train-calibrated value (evaluate --write-threshold)
+  threshold: 0.24180059226281184
   calibrate: true

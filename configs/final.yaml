@@ -1,5 +1,5 @@
 name: overlap_up
-status: candidate
+status: final
 data:
   raw_dir: data/raw/legalbench-rag
   benchmark: benchmarks/cuad.json
