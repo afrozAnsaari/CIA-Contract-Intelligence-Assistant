@@ -77,6 +77,8 @@ class RetrievalOutput:
     passages: list[Passage]
     signals: dict[str, float]
     routed_documents: list[str] = field(default_factory=list)
+    unresolved_contract: bool = False  # query names no contract and query.require_contract is on
+    contract_candidates: list[str] = field(default_factory=list)  # suggestions when unresolved
 
 
 class DenseEncoder:
@@ -154,8 +156,18 @@ class Index:
         return emb
 
     # -- retrieval -------------------------------------------------------------
-    def retrieve(self, query: str, k: int) -> RetrievalOutput:
+    def retrieve(self, query: str, k: int, document_id: str | None = None) -> RetrievalOutput:
+        """Rank passages for `query`.
+
+        document_id: restrict retrieval to this contract (explicit user choice; skips routing).
+        If query.require_contract is on (split mode), a query whose text names no contract
+        ("Consider ...;" preamble missing) and has no document_id is NOT routed to an arbitrary
+        best-matching contract: it returns no passages, unresolved_contract=True and the top
+        routing candidates as suggestions.
+        """
         rcfg, qcfg = self.cfg["retrieval"], self.cfg["query"]
+        if document_id is not None and document_id not in self.documents:
+            raise KeyError(f"Unknown document_id {document_id!r}")
         if not tokenize(query, lowercase=True, stopwords=True):
             # No content terms (only stopwords/punctuation/non-Latin script): no evidence possible.
             return RetrievalOutput(passages=[], signals={}, routed_documents=[])
@@ -169,11 +181,18 @@ class Index:
         mask = np.ones(len(self.chunks), dtype=bool)
         routed: list[str] = []
 
-        if self.doc_bm25 is not None:
+        if document_id is not None:
+            routed = [document_id]
+            mask = self.chunk_doc == self.doc_ids.index(document_id)
+        elif self.doc_bm25 is not None:
             rq = self.tok(routing_q)
             ds = self.doc_bm25.scores(rq)
             ub = self.doc_bm25.upper_bound(rq)
             order = sorted(range(len(self.doc_ids)), key=lambda i: (-ds[i], self.doc_ids[i]))
+            if qcfg["mode"] == "split" and qcfg.get("require_contract") and not preamble:
+                cands = [self.doc_ids[i] for i in order[:3] if ds[i] > 0]
+                return RetrievalOutput(passages=[], signals={}, routed_documents=[],
+                                       unresolved_contract=True, contract_candidates=cands)
             top = [i for i in order[: int(rcfg["doc_routing"]["top_n_docs"])] if ds[i] > 0]
             signals["doc_bm25_norm"] = float(ds[order[0]] / ub) if ub > 0 and len(order) else 0.0
             if top:

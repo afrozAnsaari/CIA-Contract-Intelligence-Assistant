@@ -124,3 +124,46 @@ def test_dense_and_hybrid_paths_with_fake_encoder(tiny, method):
     assert s == sorted(s, reverse=True)
     for p in out.passages:
         assert ds.documents[p.document_id][p.start_offset:p.end_offset] == p.text
+
+
+# --- contract identity (E2 regression) -------------------------------------------------
+SPLIT = {"query.mode": "split", "query.chunk_query": "question", "retrieval.doc_routing.enabled": True,
+         "abstention.signal": "chunk_full_bm25_norm", "abstention.threshold": 0.0}
+
+
+def test_unnamed_contract_is_not_silently_routed(tiny):
+    cfg, ds = tiny
+    p = Pipeline(apply_overrides(cfg, {**SPLIT, "query.require_contract": True}), ds.documents)
+    r = p.search("What is the governing law for this contract?", 3)
+    assert r.abstained and r.abstention_reason == "contract_not_identified" and r.passages == []
+    assert r.contract_candidates and set(r.contract_candidates) <= set(ds.documents)
+    named = p.search("Consider the License Agreement between AlphaCo Inc. and Gamma LLC; "
+                     "What is the governing law for this contract?", 3)
+    assert not named.abstained and named.passages  # named contracts unaffected
+
+
+def test_require_contract_off_keeps_old_routing(tiny):
+    cfg, ds = tiny
+    out = Pipeline(apply_overrides(cfg, SPLIT), ds.documents).retrieve("What is the governing law?", 3)
+    assert not out.unresolved_contract and out.routed_documents
+
+
+def test_document_filter_and_resolution(tiny):
+    cfg, ds = tiny
+    p = Pipeline(apply_overrides(cfg, {**SPLIT, "query.require_contract": True}), ds.documents)
+    r = p.search("What is the governing law for this contract?", 5, document="AlphaCo")
+    assert not r.abstained and r.document_filter == "cuad/AlphaCo_License Agreement.txt"
+    assert r.passages and all(x["document_id"] == r.document_filter for x in r.passages)
+    with pytest.raises(PipelineError):
+        p.search("governing law", 3, document="NoSuchContract")
+    with pytest.raises(PipelineError):
+        p.search("governing law", 3, document="Agreement")  # ambiguous substring
+
+
+def test_evaluation_records_contract_not_identified(tiny):
+    from src.evaluation import evaluate
+    cfg, ds = tiny
+    res = evaluate(apply_overrides(cfg, {**SPLIT, "query.require_contract": True}), ds, "train")
+    neg = [r for r in res["per_query"] if not r["answerable"]]
+    assert neg and all(r["abstained"] for r in neg)
+    assert {r["abstention_reason"] for r in neg} == {"contract_not_identified"}  # fixture negatives name no contract

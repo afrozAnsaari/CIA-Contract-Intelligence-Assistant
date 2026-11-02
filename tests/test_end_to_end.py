@@ -110,3 +110,26 @@ def test_demo_check_runs(tiny):
     assert res["summary"]["C"][0] == res["summary"]["C"][1]  # input handling must be robust
     assert res["summary"]["A"][1] >= 1 and res["summary"]["B"][1] >= 1
     assert "PASS" in format_report(res)
+
+
+def test_cli_show_span_and_document_option(tiny, tmp_path, capsys):
+    cfg, ds = tiny
+    path = _write_cfg(cfg, tmp_path)
+    doc = "cuad/AlphaCo_License Agreement.txt"
+    s = ds.documents[doc].index("governed by")
+    assert cli.main(["show-span", "--document", "AlphaCo", "--start", str(s), "--end", str(s + 11),
+                     "--config", path]) == 0
+    assert capsys.readouterr().out.strip().endswith("governed by")
+    assert cli.main(["show-span", "--document", "AlphaCo", "--start", "5", "--end", "999999", "--config", path]) == 2
+    assert cli.main(["search", "--query", "governing law", "--document", "AlphaCo", "--config", path, "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert all(p["document_id"] == doc for p in out["passages"])
+
+
+def test_streamlit_invalid_config_is_controlled(monkeypatch):
+    pytest.importorskip("streamlit.testing.v1")
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv("CIA_CONFIG", "does/not/exist.yaml")
+    at = AppTest.from_file(str(REPO_ROOT / "app.py"), default_timeout=60).run()
+    assert not at.exception          # no unhandled traceback
+    assert at.error                  # a controlled error message is shown

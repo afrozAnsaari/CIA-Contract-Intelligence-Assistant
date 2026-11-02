@@ -43,6 +43,9 @@ DEFAULTS: dict[str, Any] = {
         # contract preamble and rank chunks with `chunk_query` (see below).
         "mode": "full",
         "chunk_query": "full",  # full | question (only used when mode == split)
+        # split mode only: if the query names no contract, abstain with a clarification
+        # ("contract_not_identified" + suggestions) instead of routing to an arbitrary contract.
+        "require_contract": False,
     },
     "retrieval": {
         "method": "bm25",  # bm25 | dense | hybrid

@@ -20,9 +20,9 @@ def get_pipeline(config_path: str) -> Pipeline:
     return Pipeline.from_config(config_path)
 
 
-def run_query(pipeline: Pipeline, query: str, top_k: int):
+def run_query(pipeline: Pipeline, query: str, top_k: int, document: str | None = None):
     """Thin wrapper (kept separate so tests can exercise the UI path without a browser)."""
-    return pipeline.search(query, top_k=top_k)
+    return pipeline.search(query, top_k=top_k, document=document)
 
 
 def main() -> None:
@@ -44,6 +44,10 @@ def main() -> None:
         st.markdown(f"**Config:** `{pipeline.cfg.get('name')}` ({pipeline.cfg.get('status')})")
         st.markdown(f"**Indexed contracts:** {len(pipeline.documents)}  \n**Chunks:** {len(pipeline.index.chunks)}")
         top_k = st.slider("Passages to return (top-k)", 1, 20, 5)
+        auto = "Auto-detect from the question"
+        doc_choice = st.selectbox("Contract", [auto] + sorted(pipeline.documents),
+                                  format_func=lambda d: d if d == auto else d.split("/")[-1])
+        document = None if doc_choice == auto else doc_choice
         with st.expander("Indexed documents"):
             for d in sorted(pipeline.documents):
                 st.text(d)
@@ -59,7 +63,7 @@ def main() -> None:
         st.warning("Please enter a question.")
         return
     try:
-        res = run_query(pipeline, query, top_k)
+        res = run_query(pipeline, query, top_k, document)
     except PipelineError as e:
         st.error(str(e))
         return
@@ -68,6 +72,15 @@ def main() -> None:
         return
 
     st.markdown(f"**Query:** {res.query}")
+    if res.document_filter:
+        st.caption(f"Restricted to contract: {res.document_filter}")
+    if res.abstention_reason == "contract_not_identified":
+        st.warning("**Abstained - which contract?** The question does not name a contract, so none was "
+                   "assumed. Name it in the question (\"Consider the <Agreement> between <A> and <B>; "
+                   "<question>\") or pick one in the sidebar.")
+        if res.contract_candidates:
+            st.markdown("Closest matches:\n" + "\n".join(f"- `{c}`" for c in res.contract_candidates))
+        return
     if res.abstained:
         st.warning(f"**Abstained** - no sufficiently relevant evidence in the indexed contracts "
                    f"(reason: {res.abstention_reason}; {res.signal_text()}).")

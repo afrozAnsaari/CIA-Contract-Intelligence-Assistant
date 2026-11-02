@@ -92,7 +92,17 @@ def run_demo_check(pipe: Pipeline, top_k: int = 5, n_types: int = 10) -> dict:
     expect_ok("non-English (Hindi)", "इस अनुबंध का शासी कानून क्या है?")
     expect_ok("emoji", "📄🤔 governing law?")
     expect_ok("very long query (5k chars)", "governing law " * 360)
-    expect_ok("no 'Consider ...;' preamble", "What is the governing law for this contract?")
+    if pipe.cfg["query"]["mode"] == "split" and pipe.cfg["query"].get("require_contract"):
+        r = pipe.search("What is the governing law for this contract?", top_k)
+        rows.append(("C input", "no contract named (require_contract)", "abstain: contract_not_identified",
+                     f"{r.abstention_reason}; suggestions={len(r.contract_candidates)}",
+                     r.abstained and r.abstention_reason == "contract_not_identified" and not r.passages, ""))
+        doc = sorted(pipe.documents)[0]
+        r = pipe.search("What is the governing law for this contract?", top_k, document=doc)
+        rows.append(("C input", "document filter keeps results in that contract", "all passages from it",
+                     f"{len(r.passages)} passages", all(p["document_id"] == doc for p in r.passages), r.signal_text()))
+    else:
+        expect_ok("no 'Consider ...;' preamble", "What is the governing law for this contract?")
 
     summary = {}
     for grp in ("A", "B", "C"):

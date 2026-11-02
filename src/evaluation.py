@@ -25,6 +25,7 @@ def run_queries(pipeline: Pipeline, queries: list[Query]) -> list[dict]:
         out.append({
             "qid": q.qid, "query": q.query, "split": q.split, "answerable": q.answerable,
             "category": q.category, "signals": r.signals, "routed_documents": r.routed_documents,
+            "unresolved_contract": r.unresolved_contract,
             "passages": [(p.document_id, p.start_offset, p.end_offset, p.score) for p in r.passages],
         })
     return out
@@ -56,6 +57,8 @@ def score(raw_ans: list[dict], raw_neg: list[dict], queries: dict[str, Query], d
             if not (0 <= s < e <= len(documents.get(doc, ""))):
                 offset_errors += 1
         d = decide(len(r["passages"]), r["signals"], cfg["abstention"])
+        if r.get("unresolved_contract"):
+            d.reason = "contract_not_identified"
         rec = {"qid": r["qid"], "query": r["query"], "split": r["split"], "answerable": r["answerable"],
                "category": r["category"], "abstained": d.abstained, "abstention_reason": d.reason,
                "signal": d.signal, "signal_value": d.value, "threshold": d.threshold,

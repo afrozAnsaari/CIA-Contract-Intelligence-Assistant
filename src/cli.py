@@ -76,6 +76,16 @@ def print_result(res, as_json: bool) -> None:
         print(json.dumps(res.to_dict(), indent=2))
         return
     print(f"Query: {res.query}")
+    if res.document_filter:
+        print(f"Restricted to contract: {res.document_filter}")
+    if res.abstention_reason == "contract_not_identified":
+        print("ABSTAINED: the question does not name a contract, so no contract was assumed.")
+        print("Name it in the query (\"Consider the <Agreement> between <A> and <B>; <question>\") "
+              "or pass --document. Closest matches:")
+        for c in res.contract_candidates:
+            print(f"  - {c}")
+        print(f"\n{DISCLAIMER}")
+        return
     if res.abstained:
         print(f"ABSTAINED: no sufficiently relevant evidence found "
               f"(reason={res.abstention_reason}; {res.signal_text()})")
@@ -92,11 +102,28 @@ def cmd_search(a) -> int:
     from .pipeline import Pipeline, PipelineError
     try:
         pipe = Pipeline.from_config(a.config)
-        res = pipe.search(a.query, top_k=a.top_k)
+        res = pipe.search(a.query, top_k=a.top_k, document=a.document)
     except (PipelineError, FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     print_result(res, a.json)
+    return 0
+
+
+def cmd_show_span(a) -> int:
+    from .pipeline import Pipeline, PipelineError
+    try:
+        pipe = Pipeline.from_config(a.config)
+        doc = pipe.resolve_document(a.document)
+    except PipelineError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    text = pipe.documents[doc]
+    if not 0 <= a.start < a.end <= len(text):
+        print(f"error: span [{a.start}, {a.end}) outside document length {len(text)}", file=sys.stderr)
+        return 2
+    print(f"document={doc}  span=[{a.start}, {a.end})  chars={a.end - a.start}")
+    print(text[a.start:a.end])
     return 0
 
 
@@ -214,8 +241,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--query", "-q", required=True, help="natural-language question")
     s.add_argument("--top-k", "-k", type=int, default=5, help="number of passages to return (default 5)")
     s.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    s.add_argument("--document", "-d", default=None,
+                   help="restrict to one contract (exact document_id or unique substring, e.g. PapaJohns)")
     _add_config(s)
     s.set_defaults(func=cmd_search)
+
+    s = sub.add_parser("show-span", help="print document[start:end] from the original source text")
+    s.add_argument("--document", "-d", required=True, help="exact document_id or unique substring")
+    s.add_argument("--start", type=int, required=True)
+    s.add_argument("--end", type=int, required=True)
+    _add_config(s)
+    s.set_defaults(func=cmd_show_span)
 
     s = sub.add_parser("evaluate", help="evaluate a config on train (default) or, with --final-test, test")
     _add_config(s)

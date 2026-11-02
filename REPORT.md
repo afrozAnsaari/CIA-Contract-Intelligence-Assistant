@@ -235,7 +235,11 @@ Baseline for comparison (`artifacts/error_analysis/baseline/summary.json`): wron
 low_rank 13, chunk_boundary 13, false_abstention 5, partial_span 4, irrelevant_extra 1, ok 0.
 Twelve concrete failures (all from the final config on train; offsets are character offsets):
 
-**Wrong section** (right contract, no gold overlap in top 5)
+Each group lists its likely cause in the per-item diagnosis and a **next action** that would have
+to be validated on train before adoption.
+
+**Wrong section** (right contract, no gold overlap in top 5) — *next action:* dense/hybrid
+retrieval or a cross-encoder reranker for vocabulary gaps (implemented, not evaluated).
 1. `cuad-551a572623` — BicycleTX/Crockett service agreement, *"Are there any exceptions to
    competitive restrictions?"* Gold [33572, 34034]: "save that nothing in this paragraph 13.2 shall
    prevent you from holding…". Got #1 [37817, 38817], #2 [38817, 39508]: the restrictive covenants
@@ -246,7 +250,9 @@ Twelve concrete failures (all from the final config on train; offsets are charac
    (bankruptcy/insolvency boilerplate, score 2.37). Diagnosis: vocabulary gap
    (expiration ↔ term); BM25 has almost nothing to match. Motivates dense/hybrid retrieval.
 
-**Irrelevant extra text** (gold fully in top 5, precision@5 < 0.1)
+**Irrelevant extra text** (gold fully in top 5, precision@5 < 0.1) — *next action:* sentence-level
+refinement inside top chunks, or smaller chunks under a recall-aware objective (`chunk_500`/
+`chunk_300` raised F1 but failed the recall@5 guardrail).
 3. `cuad-e5b265c6b3` — BicycleTX, *"What is the governing law?"* Gold [53956, 54252] fully inside
    #1 [53459, 54272]; P@5 = 0.071, R@5 = 1.0. Diagnosis: correct top-1, but a 296-char answer
    inside ~4,000 returned characters.
@@ -254,7 +260,8 @@ Twelve concrete failures (all from the final config on train; offsets are charac
    [16376, 17340]; #2 is the table of contents [1775, 2741]. P@5 = 0.059. Diagnosis: same; table
    of contents entries ("13. Notices….") match clause headings lexically.
 
-**Low rank** (gold in top 5, but not at rank 1)
+**Low rank** (gold in top 5, but not at rank 1) — *next action:* reranking; carve-out phrasing
+("save that", "except") as a query-expansion experiment.
 5. `cuad-5c06b5a634` — ISA/Rubicon strategic alliance, *"Exceptions to competitive restrictions?"*
    Gold [23556, 23770]; #1 [20522, 21517] and #2 [22344, 23093] are the non-compete itself.
    Diagnosis: as #1 — carve-out ranked below the restriction it modifies.
@@ -263,7 +270,8 @@ Twelve concrete failures (all from the final config on train; offsets are charac
    only via #2 [2383, 3209]; #1 [13245, 14220] is a termination clause. Diagnosis: the annotated
    answer never says "warranty"; weak lexical signal.
 
-**Partial span** (some gold found, recall@5 < 1, multi-span answers)
+**Partial span** (some gold found, recall@5 < 1, multi-span answers) — *next action:* down-weight
+recitals (WHEREAS) and table-of-contents chunks; adjacent-chunk expansion.
 7. `cuad-e568fcd380` — ISA/Rubicon, *"How is IP ownership assigned?"* Two gold spans
    [14401, 14603], [14605, 15442]; got #1 [13158, 14127], #2 [17453, 18445] (neighbouring IP
    clauses). R@5 = 0.112. Diagnosis: many IP-heavy sections compete; the long definitional span
@@ -273,7 +281,8 @@ Twelve concrete failures (all from the final config on train; offsets are charac
    "Exclusive License". R@5 = 0.107. Diagnosis: recitals repeat key terms more densely than the
    operative clause.
 
-**Chunk boundary** (a gold span shorter than a chunk is cut by a returned passage boundary)
+**Chunk boundary** (a gold span shorter than a chunk is cut by a returned passage boundary) —
+*next action:* merge contiguous returned passages for display, or clause-numbering-aware splits.
 9. `cuad-eb238d491d` — ISA/Rubicon, *"Exclusivity agreement?"* Gold [5690, 6079], [6537, 7080];
    got #2 [6776, 7377] (start produced by overlap trimming) covering only the tail of the second
    span. R@5 = 0.592. Diagnosis: the trim policy keeps the uncovered remainder, which can begin
@@ -282,7 +291,8 @@ Twelve concrete failures (all from the final config on train; offsets are charac
     Diagnosis: licence grant split across chunks; the most relevant chunk ranks below
     IP-reservation clauses.
 
-**False abstention** (answerable, signal < 0.2739)
+**False abstention** (answerable, signal < 0.2739) — *next action:* a better-calibrated signal
+(e.g. length-aware normalisation) evaluated on train; **not** a lower threshold (trade-off below).
 11. `cuad-2f7d42bc6c` — BicycleTX, *"Any right of first refusal / first offer / first negotiation?"*
     Signal 0.245. Gold [6235, 6531], [6533, 7937] describe a share-option arrangement. Diagnosis:
     the annotated answer shares almost no vocabulary with the question; low evidence is
@@ -291,6 +301,23 @@ Twelve concrete failures (all from the final config on train; offsets are charac
     [44251, 45248] covered 79% of the gold span [44840, 45359]. Diagnosis: a good answer thrown
     away — the long contract and the generic question give a low normalised score. This is the
     cost side of the threshold.
+
+**E1 threshold trade-off** (train, computed from the saved per-query signals of
+`artifacts/loop/run3/iter09_overlap_up/per_query.jsonl`; no new evaluation). Failure #12 scores
+0.248; three train negatives score between it and the threshold (unans-026 0.251, unans-030 0.257,
+unans-025 0.271):
+
+| Threshold | False abstentions (/140) | Failures to abstain (/28) | Balanced acc. |
+|---|---|---|---|
+| **0.2739 (selected)** | 3 | 0 | **0.989** |
+| 0.2600 | 3 | 1 | 0.971 |
+| 0.2500 | 2 | 3 | 0.939 |
+| 0.2470 (rescues #12) | 1 | 3 | 0.943 |
+| 0.2400 | 0 | 3 | 0.946 |
+
+Rescuing #12 by lowering the threshold would admit three unanswerable queries, so the
+calibrated threshold was kept. The cause of #12 is the abstention signal, not routing (correct
+contract) or ranking (rank 1 covers 408 of 519 gold characters).
 
 Machine-readable: `artifacts/error_analysis/overlap_up/failures.jsonl` (116 records) and
 `artifacts/error_analysis/baseline/failures.jsonl` (140 records).
@@ -301,10 +328,13 @@ analysed per query to avoid informing further changes.
 
 ## 9. Limitations, risks, next steps
 
-- **Query format dependence.** Routing relies on the CUAD "Consider …;" preamble. A question
-  without it (e.g. "What restrictions apply to sublicensing?") is routed to whichever single
-  contract matches best, which is often wrong. Real users would need a contract selector or
-  multi-document retrieval (`top_n_docs` > 1).
+- **Query format dependence.** Routing relies on the CUAD "Consider …;" preamble. Originally a
+  question without it was silently routed to the single best-matching contract (e.g. "What is the
+  governing law for this contract?" returned an HPIL passage). The final config now sets
+  `query.require_contract: true`: such questions abstain with reason `contract_not_identified` and
+  the three closest contracts as suggestions; the user can name the contract or choose one
+  explicitly (CLI `--document`, app sidebar "Contract"). Contract identification still relies on
+  a preamble pattern; free-form references ("the Shaq deal") are not resolved.
 - **Single-contract routing.** If routing picks the wrong contract, recall is 0 for that query.
   It was correct for 140/140 train queries, but parties were named explicitly.
 - **Low precision.** About 900-char passages for about 300-char answers. Sentence-level refinement inside the
@@ -319,6 +349,11 @@ analysed per query to avoid informing further changes.
   are harder, as the v2 experiment showed.
 - **Small, homogeneous benchmark.** 29 contracts, 194 queries; differences of a few hundredths
   in train metrics (e.g. +0.004 for `overlap_up`) are not statistically meaningful.
+- **Negative-set caveat (reported, not changed).** `unans-011` ("Which party is responsible for
+  sponsoring immigration petitions for foreign workers?") is unanswerable, but two UK service
+  agreements contain a nearby clause about the employee's "right to work in the United Kingdom".
+  It was left unchanged because the set is frozen; it is a harder-than-intended negative, not an
+  answerable one.
 - **Not legal advice.** The system returns excerpts; it does not interpret them. Before real
   legal use: lawyer-validated evaluation on the target contract population, calibration of the
   abstention rule on realistic negatives, document-level access control, and audit logging.
@@ -340,7 +375,56 @@ motivated by train diagnostics only, as documented in Section 7 and in the `conf
 change log. The improvement loop code never loads test queries. Runs #2 and #3 were made after
 the final configuration was committed (`b4dbca3`), and no changes followed them.
 
+**Change after the test runs.** After runs #2/#3, an audit found that unnamed-contract questions
+were silently routed (Section 9). `query.require_contract: true` was added to `configs/final.yaml`.
+This can change outcomes only for queries **without** a "Consider …;" preamble, and only from
+"answered" to "abstained". All 194 benchmark queries (train and test) have a preamble (checked
+from query text only), so every answerable result is unchanged; all 7 test negatives were already
+abstained, so they remain abstained. The reported test metrics therefore also hold for the
+updated config, and **no fourth test run was made**. On train this was verified directly: all 168
+train queries (140 answerable + 28 unanswerable) produce identical passages and abstention
+decisions with the flag on and off; only the reason label of the 14 no-preamble train negatives
+changes to `contract_not_identified`.
+
+**Provenance**
+
+| Item | Value |
+|---|---|
+| Frozen final config fingerprint (as tested, `artifacts/test_runs.jsonl` run #2) | `3254f317b4c41e2c` (= `artifacts/loop/run3/accepted_config.yaml`) |
+| Current `configs/final.yaml` fingerprint | `72c8f8c97f8f7ab1` (= frozen + `require_contract: true`; removing that key reproduces `3254f317b4c41e2c`) |
+| Code commit of the final selection | `b4dbca3`; test runs #2/#3 on that code; report commit `93a8a06` |
+| `benchmarks/cuad.json` SHA-256 | `8e0405b15fb8…` (matches dataset `SHA256SUMS`) |
+| `data/processed/manifest.json` SHA-256 | `204a4d7efb3a…` |
+| `data/unanswerable_queries.json` SHA-256 | `77d8b48ab6c6…` |
+
+Fingerprints are SHA-256 of the fully resolved config (defaults merged), excluding `name`/`status`;
+adding a new config key changes them, so they are only comparable within one code version.
+
 Integrity note: the unanswerable set was committed (`20e9cf4`, 14:44 IST) about four minutes
 after loop run 1 started (14:40 IST). The file was authored before any loop run and its SHA-256
 (`77d8b48ab6c6…`) is identical in all three loop runs' `summary.json` and in the committed file, so
 its content did not change during or after experimentation.
+
+## 11. Audit notes on manual demo cases (train queries only)
+
+Checked against the original source text and official annotations, using `configs/final.yaml`:
+
+- **A3 (Walabot reseller, liability cap) and A4 (Depomed/King, audit rights):** the evidence is not
+  missing. The gold spans straddle chunk boundaries and are fully covered by contiguous top-ranked
+  passages: A3 gold [11885, 12465] by ranks 1 + 2 (65 + 515 chars); A4's two gold spans by ranks
+  1–3. Recall@3 is 1.0 in both cases; only the display splits the clause.
+- **A7 (Information System Associates / Rubicon, renewal term):** the mapping is correct. CUAD
+  file names use the SEC filer (`DUOSTECHNOLOGIESGROUP,INC_…`), while the contract text is "by and
+  between Information  System Associates, Inc." (double space in the source) and Rubicon (133
+  mentions). Gold [18727, 19214] is covered at rank 1.
+- **A8 (Tate & Lyle / Igene, minimum commitment):** the official annotation has two spans: the
+  capitalisation commitment of "at least $21,614,000" [13653, 13922] and an annual-dividend
+  obligation [20181, 20459]. The GUI example retrieves the second at rank 1. `demo-check` samples a
+  *different* question for this contract ("exceptions to competitive restrictions"), which is why
+  they disagree. Annotations were not modified.
+- **E3 ("Papa John's … and its endorser", governing law):** with the final config this is
+  answered; rank 1 [63073, 63864] contains the Delaware governing-law clause [63649, 63806]
+  (the gold span of the corresponding real train query).
+- **E2 ("What is the governing law for this contract?", no contract named):** now abstains with
+  `contract_not_identified` plus suggestions (Section 9); regression tests in
+  `tests/test_retrieval.py`.

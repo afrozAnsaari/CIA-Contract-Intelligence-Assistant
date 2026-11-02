@@ -54,7 +54,10 @@ python -m src.cli search \
   --query "Who won the FIFA World Cup in 2018?" \
   --top-k 5                       # -> ABSTAINED
 python -m src.cli search --query "..." --top-k 3 --json        # machine-readable
+python -m src.cli search --query "What is the governing law for this contract?" --document PapaJohns
+                                  # --document restricts to one contract (id or unique substring)
 python -m src.cli search --query "..." --config configs/baseline.yaml
+python -m src.cli show-span --document PapaJohns --start 63649 --end 63806   # print a source slice
 
 # Web app (http://localhost:8501)
 streamlit run app.py
@@ -73,10 +76,12 @@ python -m src.cli --help          # all subcommands
 | `improve` | the one-command train-only improvement loop |
 | `error-analysis` | categorised train failures (`error_analysis.md`, `failures.jsonl`) |
 | `demo-check` | PASS/FAIL battery: train queries, train negatives, invalid inputs |
+| `show-span --document D --start S --end E` | print `document[S:E]` from the original source text (offset checks) |
 
 The CUAD-style query format "Consider the <contract>; <question>" works best: the preamble picks
-the contract and the question ranks its passages. A question without a preamble is routed to the
-single best-matching contract (see Limitations).
+the contract and the question ranks its passages. With the final config, a question that names no
+contract **abstains** with reason `contract_not_identified` and suggests the closest contracts.
+You can name the contract in the question, pass `--document`, or pick it in the app sidebar.
 
 ## Architecture
 
@@ -111,7 +116,7 @@ chunk BM25 on the question ranks that contract's chunks → overlap trimming →
 | File | Meaning |
 |---|---|
 | `configs/baseline.yaml` | initial BM25 config (1,000/150 chunks, full query); threshold written by `evaluate --write-threshold` |
-| `configs/final.yaml` | selected by loop run 3 (`overlap_up`): question-only ranking, routing, stemming + stopwords, 1,000/300 chunks, trim, `chunk_full_bm25_norm` ≥ 0.2739 |
+| `configs/final.yaml` | selected by loop run 3 (`overlap_up`): question-only ranking, routing, stemming + stopwords, 1,000/300 chunks, trim, `chunk_full_bm25_norm` ≥ 0.2739; plus `require_contract: true` added after the test runs (no effect on benchmark queries, REPORT.md §10) |
 | `configs/loop.yaml` | primary metric, guardrails, tolerances, candidate list (spec v3, with change log) |
 
 Every key and its default is listed in `src/config.py` (`DEFAULTS`). Any key can be changed in
@@ -127,16 +132,16 @@ From the repo root with the venv active. Runtimes were measured on a 12-core CPU
 | 2 | Data | `python -m src.cli prepare-data --source /path/to/legalbench-rag` | `data/raw/legalbench-rag/...`, `data/processed/manifest.json`, `cuad_mini_queries.jsonl` | `mini_n: 194`, `n_documents: 29`, `train: 140`, `test: 54`, `checksums_verified: 30` | seconds |
 | 3 | Validate | `python -m src.cli validate-data` | JSON report | `gold_spans_mismatched: 0`, `indexed_equals_referenced: true`, `n_unanswerable: 35` (28/7), `unanswerable_absence_term_hits: {}`, `chunk_offset_violations: 0`, `VALIDATION OK` | < 1 s |
 | 4 | Freeze negatives | `git add data/unanswerable_queries.json && git commit -m "Freeze unanswerable set"` | commit | never edited afterwards (each loop run records its SHA-256) | - |
-| 5 | Tests | `python -m pytest -q` | - | `77 passed` | ~2 s |
+| 5 | Tests | `python -m pytest -q` | - | `83 passed` | ~2 s |
 | 6 | Index | `python -m src.cli build-index --config configs/final.yaml` | `artifacts/index/<fp>/stats.json` | `n_documents: 29`, `n_chunks: 2027` (baseline: 1617) | seconds |
 | 7 | Baseline train eval | `python -m src.cli evaluate --config configs/baseline.yaml` | `artifacts/eval/baseline_train_<ts>/{metrics.json,metrics_by_k.csv,per_query.jsonl,config_used.yaml}` | `answerable n=140 unanswerable n=28 offset_errors=0`, F1@5 0.0328 | seconds |
 | 8 | Improvement loop | `python -m src.cli improve --config configs/baseline.yaml --spec configs/loop.yaml --run-name run3` | `artifacts/loop/run3/{loop.log,iterations.jsonl,accepted_config.yaml,summary.json,iterNN_*/}` | ends with `[loop] done. evaluated=12 accepted=overlap_up`, exit 0 | ~4 s (dense candidates skipped unless the extra is installed) |
 | 9 | Inspect | `python -c "import json;[print(r.get('iteration'),r['candidate_id'],r['decision'],r['reason']) for r in map(json.loads,open('artifacts/loop/run3/iterations.jsonl'))]"` | - | every candidate has a decision + reason | - |
-| 10a | Promote | `cp artifacts/loop/run3/accepted_config.yaml configs/final.yaml`, then set `status: final`; commit | - | `demo-check` C = 12/12 | - |
+| 10a | Promote | `cp artifacts/loop/run3/accepted_config.yaml configs/final.yaml`, then set `status: final` and add `require_contract: true` under `query:`; commit | - | `demo-check` C = 13/13 | - |
 | 10b | Final test (once) | `python -m src.cli evaluate --config configs/final.yaml --split test --final-test` | `artifacts/eval/<name>_test_<ts>/`, appends to `artifacts/test_runs.jsonl` | `answerable n=54 unanswerable n=7`, threshold "(from config)" | seconds |
 | 10c | Baseline test | `python -m src.cli evaluate --config configs/baseline.yaml --write-threshold` then `... --config configs/baseline.yaml --split test --final-test` | as above | test run recorded | seconds |
 | 11 | Error analysis | `python -m src.cli error-analysis --config configs/final.yaml` (and `baseline.yaml`) | `artifacts/error_analysis/<name>/{error_analysis.md,failures.jsonl,summary.json}` | ≥ 10 failures, grouped | seconds |
-| 12 | Demo | `python -m src.cli demo-check --config configs/final.yaml`; `streamlit run app.py`; CLI examples above | console / browser | demo-check: A 4/10, B 4/4, C 12/12; GUI: green passages for `[PASS] A` queries, "Abstained" for B queries, warning on empty input | seconds |
+| 12 | Demo | `python -m src.cli demo-check --config configs/final.yaml`; `streamlit run app.py`; CLI examples above | console / browser | demo-check: A 4/10, B 4/4, C 13/13; GUI: green passages for `[PASS] A` queries, "Abstained" for B queries, "Abstained - which contract?" with suggestions for a question naming no contract, warning on empty input | seconds |
 | 13 | Final checks | `python -m pytest -q`; `git status`; `git ls-files \| grep -Ei "data/raw\|artifacts/index\|\.env\|\.pdf\|prompt.md"` | - | tests pass; the grep prints nothing | - |
 
 Safety rails: the test split can't be evaluated without `--final-test`, and each test run is
@@ -150,7 +155,7 @@ spec v3) and `run3` produced identical decisions.
 
 ## Testing
 
-`python -m pytest -q` runs 77 tests in about 2 seconds:
+`python -m pytest -q` runs 83 tests in about 2 seconds:
 - **Synthetic fixtures:** unit tests for metrics (exact, partial, extra text, wrong document,
   multiple spans, overlap, empty, k cutoffs), chunk offsets, BM25 (against a hand-computed
   score), tie handling, abstention (equality, no candidates, two-threshold rule, calibration),
@@ -166,8 +171,9 @@ spec v3) and `run3` produced identical decisions.
 - Metrics use the union of character intervals (no double counting). The authors' pairwise
   variant is reported alongside and is identical here, because returned passages never overlap.
 - F1@5 (per-query harmonic mean, averaged) is the selection objective. It is not a benchmark metric.
-- Routing assumes the query names its contract. Without a preamble, a single best-matching
-  contract is used.
+- Contract identity comes from the query's "Consider …;" preamble or an explicit `--document`
+  or sidebar choice. Unnamed contracts abstain (`contract_not_identified`); free-form references
+  are not resolved.
 - Dense and hybrid retrieval are implemented but were not evaluated. No LLM is used.
 - The unanswerable set (35 queries, 7 in test) was hand-authored and checked lexically against
   the indexed corpus only. That check is not a legal determination.

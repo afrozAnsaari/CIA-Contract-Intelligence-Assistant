@@ -30,6 +30,8 @@ class SearchResult:
     config_name: str = ""
     doc_signal_value: float | None = None
     doc_threshold: float | None = None
+    document_filter: str | None = None
+    contract_candidates: list[str] = field(default_factory=list)
 
     def signal_text(self) -> str:
         """Human-readable abstention evidence (shared by CLI and web app)."""
@@ -66,18 +68,36 @@ class Pipeline:
     def max_k(self) -> int:
         return int(self.cfg["retrieval"]["max_k"])
 
-    def retrieve(self, query: str, k: int | None = None) -> RetrievalOutput:
+    def resolve_document(self, name: str) -> str:
+        """Map an exact document_id or a unique case-insensitive substring to a document_id."""
+        if name in self.documents:
+            return name
+        hits = [d for d in sorted(self.documents) if name.lower() in d.lower()]
+        if len(hits) == 1:
+            return hits[0]
+        if not hits:
+            raise PipelineError(f"No indexed contract matches {name!r}.")
+        raise PipelineError(f"{name!r} matches {len(hits)} contracts; be more specific: "
+                            + "; ".join(h.split('/')[-1] for h in hits[:5]))
+
+    def retrieve(self, query: str, k: int | None = None, document_id: str | None = None) -> RetrievalOutput:
         """Raw ranked retrieval (no abstention). Used by evaluation."""
         if not isinstance(query, str) or not query.strip():
             raise PipelineError("Query is empty.")
-        return self.index.retrieve(query, int(k or self.max_k))
+        return self.index.retrieve(query, int(k or self.max_k), document_id=document_id)
 
-    def search(self, query: str, top_k: int = 5) -> SearchResult:
-        """End-to-end search with abstention: what users see in the CLI and web app."""
+    def search(self, query: str, top_k: int = 5, document: str | None = None) -> SearchResult:
+        """End-to-end search with abstention: what users see in the CLI and web app.
+
+        document: optional exact id or unique substring restricting search to one contract.
+        """
         if top_k < 1:
             raise PipelineError("top_k must be >= 1")
-        out = self.retrieve(query, top_k)
+        doc_id = self.resolve_document(document) if document else None
+        out = self.retrieve(query, top_k, document_id=doc_id)
         d = decide(len(out.passages), out.signals, self.cfg["abstention"])
+        if out.unresolved_contract:
+            d.reason = "contract_not_identified"
         passages = [] if d.abstained else [p.to_dict() for p in out.passages[:top_k]]
         for p in passages:  # hard guarantee: returned offsets are exact source slices
             if self.documents[p["document_id"]][p["start_offset"]:p["end_offset"]] != p["text"]:
@@ -85,4 +105,5 @@ class Pipeline:
         return SearchResult(query=query, abstained=d.abstained, abstention_reason=d.reason, signal=d.signal,
                             signal_value=d.value, threshold=d.threshold, passages=passages,
                             config_name=self.cfg.get("name", ""), doc_signal_value=d.doc_value,
-                            doc_threshold=d.doc_threshold)
+                            doc_threshold=d.doc_threshold, document_filter=doc_id,
+                            contract_candidates=out.contract_candidates)

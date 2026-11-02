@@ -19,6 +19,7 @@ text:
 query:
   mode: split
   chunk_query: question
+  require_contract: true   # added post-freeze (see REPORT.md 10); no effect on benchmark queries
 retrieval:
   method: bm25
   max_k: 64
