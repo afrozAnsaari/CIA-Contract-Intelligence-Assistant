@@ -1,0 +1,16 @@
+{
+  "config": "iter03_stem_stopwords",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 12,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "irrelevant_extra": 1,
+    "low_rank": 19,
+    "ok": 1,
+    "partial_span": 5,
+    "wrong_section": 99
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 139
+}

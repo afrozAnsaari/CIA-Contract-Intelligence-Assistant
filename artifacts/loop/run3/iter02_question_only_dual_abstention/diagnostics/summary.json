@@ -1,0 +1,17 @@
+{
+  "config": "iter02_question_only_dual_abstention",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 21,
+    "correct_abstention": 24,
+    "failure_to_abstain": 4,
+    "false_abstention": 7,
+    "irrelevant_extra": 18,
+    "low_rank": 20,
+    "ok": 4,
+    "partial_span": 12,
+    "wrong_section": 58
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 140
+}

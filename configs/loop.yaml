@@ -1,4 +1,17 @@
 # Improvement-loop protocol. Declared BEFORE the loop is run; do not edit mid-run.
+#
+# spec_version 2 (2026-11-02). Change log:
+#   v1 -> v2: added candidate `question_only_dual_abstention`. Motivation (TRAIN diagnostics of
+#   loop run 20261102-144050 only): question-only chunk ranking raised train F1@5 0.033 -> 0.077
+#   but was rejected by the abstention guardrail, because a single chunk-level signal can no
+#   longer detect queries naming a nonexistent contract. Protocol (metric, guardrails,
+#   tolerances) is unchanged; the frozen negative set is unchanged.
+#   v2 -> v3: added candidate `question_only_fullquery_abstention`. Motivation (TRAIN diagnostics of
+#   run2 only): the dual rule reached balanced accuracy 0.904 (< guardrail 0.939); its errors were
+#   HPIL preamble/header mismatch (false abstentions) and real-contract/missing-detail negatives
+#   (failures to abstain), which the full-query chunk signal of the accepted config handled.
+#   Protocol and frozen negative set unchanged.
+spec_version: 3
 # All metrics are computed on the TRAIN split only (answerable + train part of the frozen
 # unanswerable set). Abstention thresholds are re-calibrated per candidate on train.
 protocol:
@@ -50,6 +63,33 @@ candidates:
       query.mode: split
       query.chunk_query: question
       retrieval.doc_routing.enabled: true
+
+  - id: question_only_dual_abstention
+    tags: [wrong_section, low_rank]
+    hypothesis: >-
+      Same as question_only_chunk_query, but abstention uses two checks: the contract-name
+      (preamble) match at document level (doc_bm25_norm >= doc_threshold) AND the question's
+      best passage match (chunk_bm25_norm >= threshold), jointly calibrated on train. The doc
+      check should restore rejection of nonexistent-contract queries while keeping the
+      section-ranking gain.
+    changes:
+      query.mode: split
+      query.chunk_query: question
+      retrieval.doc_routing.enabled: true
+      abstention.signal: doc_and_chunk
+
+  - id: question_only_fullquery_abstention
+    tags: [wrong_section, low_rank]
+    hypothesis: >-
+      Rank chunks of the routed contract with the question only (fixes header-chunk top-1
+      results), but keep the abstention evidence signal computed from the FULL query over the
+      routed chunks (chunk_full_bm25_norm), as in the accepted config, so abstention behaviour
+      is preserved while precision/recall improve.
+    changes:
+      query.mode: split
+      query.chunk_query: question
+      retrieval.doc_routing.enabled: true
+      abstention.signal: chunk_full_bm25_norm
 
   - id: chunk_500
     tags: [irrelevant_extra, low_rank]

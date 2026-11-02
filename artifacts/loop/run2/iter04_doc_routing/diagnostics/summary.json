@@ -1,0 +1,15 @@
+{
+  "config": "iter04_doc_routing",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 14,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "low_rank": 25,
+    "ok": 2,
+    "partial_span": 7,
+    "wrong_section": 89
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 138
+}

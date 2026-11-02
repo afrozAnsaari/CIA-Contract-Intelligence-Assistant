@@ -1,0 +1,16 @@
+{
+  "config": "iter11_bm25_params",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 9,
+    "correct_abstention": 28,
+    "false_abstention": 4,
+    "irrelevant_extra": 36,
+    "low_rank": 14,
+    "ok": 23,
+    "partial_span": 10,
+    "wrong_section": 44
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 117
+}

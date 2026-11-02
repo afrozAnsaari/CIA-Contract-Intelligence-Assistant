@@ -1,0 +1,155 @@
+spec_version: 3
+protocol:
+  primary_metric: retrieval.f1@5
+  min_improvement: 0.002
+  guardrails:
+  - metric: retrieval.recall@5
+    max_drop: 0.05
+  - metric: retrieval.precision@1
+    max_drop: 0.05
+  - metric: abstention.balanced_accuracy
+    max_drop: 0.05
+  - metric: offset_errors
+    must_equal: 0
+  max_iterations: 12
+  min_iterations: 5
+candidates:
+- id: doc_routing
+  tags:
+  - wrong_document
+  hypothesis: CUAD queries name the contract in a "Consider the ...;" preamble. Routing
+    with that preamble to the single best-matching contract (BM25 over file-name title
+    + first 3000 chars) should remove wrong-document passages and raise precision
+    and recall.
+  changes:
+    query.mode: split
+    query.chunk_query: full
+    retrieval.doc_routing.enabled: true
+    retrieval.doc_routing.top_n_docs: 1
+- id: doc_title_in_index
+  tags:
+  - wrong_document
+  hypothesis: Prepending the contract title (from the file name) to each chunk's indexing
+    text lets chunk-level BM25 match party/agreement names without changing returned
+    offsets.
+  changes:
+    retrieval.index_doc_title: true
+- id: question_only_chunk_query
+  tags:
+  - wrong_section
+  - low_rank
+  hypothesis: Once the document is fixed by routing, the preamble's party names add
+    noise to chunk ranking; ranking chunks with only the question part should find
+    the right section.
+  changes:
+    query.mode: split
+    query.chunk_query: question
+    retrieval.doc_routing.enabled: true
+- id: question_only_dual_abstention
+  tags:
+  - wrong_section
+  - low_rank
+  hypothesis: 'Same as question_only_chunk_query, but abstention uses two checks:
+    the contract-name (preamble) match at document level (doc_bm25_norm >= doc_threshold)
+    AND the question''s best passage match (chunk_bm25_norm >= threshold), jointly
+    calibrated on train. The doc check should restore rejection of nonexistent-contract
+    queries while keeping the section-ranking gain.'
+  changes:
+    query.mode: split
+    query.chunk_query: question
+    retrieval.doc_routing.enabled: true
+    abstention.signal: doc_and_chunk
+- id: question_only_fullquery_abstention
+  tags:
+  - wrong_section
+  - low_rank
+  hypothesis: Rank chunks of the routed contract with the question only (fixes header-chunk
+    top-1 results), but keep the abstention evidence signal computed from the FULL
+    query over the routed chunks (chunk_full_bm25_norm), as in the accepted config,
+    so abstention behaviour is preserved while precision/recall improve.
+  changes:
+    query.mode: split
+    query.chunk_query: question
+    retrieval.doc_routing.enabled: true
+    abstention.signal: chunk_full_bm25_norm
+- id: chunk_500
+  tags:
+  - irrelevant_extra
+  - low_rank
+  hypothesis: Gold spans have median ~317 chars; ~1000-char chunks carry mostly irrelevant
+    text. Halving chunk size should raise precision (and F1) at a modest recall cost.
+  changes:
+    chunking.max_chars: 500
+    chunking.overlap_chars: 75
+- id: stem_stopwords
+  tags:
+  - wrong_section
+  hypothesis: Morphological variants (terminate/termination, assign/assignment) and
+    function words hurt lexical matching; Snowball stemming + stopword removal should
+    improve ranking.
+  changes:
+    text.stemming: true
+    text.stopwords: true
+- id: overlap_trim
+  tags:
+  - chunk_boundary
+  - partial_span
+  hypothesis: Instead of skipping overlapping same-document chunks, return their uncovered
+    remainder so adjacent context is kept without double counting.
+  changes:
+    retrieval.overlap_policy: trim
+- id: overlap_up
+  tags:
+  - chunk_boundary
+  hypothesis: More overlap (30% of chunk size) reduces gold spans being cut at chunk
+    boundaries.
+  changes:
+    chunking.overlap_chars:
+      frac_of: chunking.max_chars
+      frac: 0.3
+- id: chunk_300
+  tags:
+  - irrelevant_extra
+  hypothesis: Even smaller (~300 char, sentence-scale) chunks may further improve
+    precision@k.
+  changes:
+    chunking.max_chars: 300
+    chunking.overlap_chars: 45
+- id: bm25_params
+  tags: []
+  hypothesis: Contracts mix long boilerplate and short clauses; weaker length normalisation
+    (b=0.5) and lower term saturation (k1=1.2) may rank short clause chunks better.
+  changes:
+    retrieval.bm25.k1: 1.2
+    retrieval.bm25.b: 0.5
+- id: abstain_on_doc_signal
+  tags:
+  - false_abstention
+  hypothesis: Unanswerable queries often name nonexistent contracts; the document-routing
+    match strength may separate them better than chunk-level evidence strength.
+  changes:
+    abstention.signal: doc_bm25_norm
+- id: chunk_1500
+  tags:
+  - partial_span
+  hypothesis: Multi-sentence answers may need longer chunks; tests whether recall
+    gains outweigh the precision loss.
+  changes:
+    chunking.max_chars: 1500
+    chunking.overlap_chars: 225
+- id: hybrid_rrf
+  requires: dense
+  tags:
+  - wrong_section
+  hypothesis: A compact embedding model (all-MiniLM-L6-v2) captures paraphrases BM25
+    misses; reciprocal-rank fusion with BM25 may improve section ranking.
+  changes:
+    retrieval.method: hybrid
+- id: dense_only
+  requires: dense
+  tags: []
+  hypothesis: Check whether dense retrieval alone beats BM25 on this legal corpus
+    (not assumed).
+  changes:
+    retrieval.method: dense
+    abstention.signal: dense_max_cos

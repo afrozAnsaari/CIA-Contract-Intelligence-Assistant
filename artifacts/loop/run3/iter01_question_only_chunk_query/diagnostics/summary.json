@@ -1,0 +1,17 @@
+{
+  "config": "iter01_question_only_chunk_query",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 20,
+    "correct_abstention": 21,
+    "failure_to_abstain": 7,
+    "false_abstention": 19,
+    "irrelevant_extra": 17,
+    "low_rank": 15,
+    "ok": 3,
+    "partial_span": 11,
+    "wrong_section": 55
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 144
+}

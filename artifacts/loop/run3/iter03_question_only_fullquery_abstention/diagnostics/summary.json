@@ -1,0 +1,16 @@
+{
+  "config": "iter03_question_only_fullquery_abstention",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 23,
+    "correct_abstention": 28,
+    "false_abstention": 5,
+    "irrelevant_extra": 19,
+    "low_rank": 20,
+    "ok": 4,
+    "partial_span": 12,
+    "wrong_section": 57
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 136
+}

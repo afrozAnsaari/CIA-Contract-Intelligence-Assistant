@@ -22,7 +22,7 @@ import numpy as np
 
 from .chunking import Chunk, chunk_corpus
 from .config import index_fingerprint, resolve_path
-from .text import make_tokenizer, split_query, title_from_document_id
+from .text import make_tokenizer, split_query, title_from_document_id, tokenize
 
 
 class BM25:
@@ -156,6 +156,9 @@ class Index:
     # -- retrieval -------------------------------------------------------------
     def retrieve(self, query: str, k: int) -> RetrievalOutput:
         rcfg, qcfg = self.cfg["retrieval"], self.cfg["query"]
+        if not tokenize(query, lowercase=True, stopwords=True):
+            # No content terms (only stopwords/punctuation/non-Latin script): no evidence possible.
+            return RetrievalOutput(passages=[], signals={}, routed_documents=[])
         preamble, question = split_query(query)
         if qcfg["mode"] == "split" and preamble:
             routing_q = preamble
@@ -182,6 +185,15 @@ class Index:
         ub = self.bm25.upper_bound(cq)
         masked_bm = np.where(mask, bm, 0.0)
         signals["chunk_bm25_norm"] = float(masked_bm.max() / ub) if ub > 0 and len(bm) else 0.0
+        # Evidence strength of the FULL query over the (routed) chunks, independent of which
+        # query text is used for ranking. Equals chunk_bm25_norm when chunk_q == query.
+        if chunk_q != query:
+            fq = self.tok(query)
+            fub = self.bm25.upper_bound(fq)
+            fbm = np.where(mask, self.bm25.scores(fq), 0.0)
+            signals["chunk_full_bm25_norm"] = float(fbm.max() / fub) if fub > 0 and len(fbm) else 0.0
+        else:
+            signals["chunk_full_bm25_norm"] = signals["chunk_bm25_norm"]
         cand = np.flatnonzero(mask)
 
         method = rcfg["method"]

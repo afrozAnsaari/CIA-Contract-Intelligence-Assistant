@@ -1,0 +1,220 @@
+[loop] baseline: baseline  (train answerable=140, train unanswerable=28)
+split=train  config=baseline  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.0028  0.0071  0.0040 |   0.0028   0.0071
+   2  0.0070  0.0262  0.0110 |   0.0070   0.0262
+   4  0.0158  0.1108  0.0264 |   0.0158   0.1108
+   5  0.0191  0.1650  0.0328 |   0.0186   0.1622
+   8  0.0183  0.2527  0.0330 |   0.0180   0.2499
+  16  0.0116  0.2925  0.0219 |   0.0111   0.2848
+  32  0.0072  0.3753  0.0140 |   0.0069   0.3676
+  64  0.0043  0.4619  0.0084 |   0.0040   0.4427
+abstention signal=chunk_bm25_norm threshold=0.2418 (calibrated on train)
+false_abstention_rate=0.036 (5/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.982
+
+[loop] iteration 1: question_only_chunk_query (rule: dominant failure 'wrong_section' matches tags)
+  hypothesis: Once the document is fixed by routing, the preamble's party names add noise to chunk ranking; ranking chunks with only the question part should find the right section.
+  changes: {'query.mode': 'split', 'query.chunk_query': 'question', 'retrieval.doc_routing.enabled': True}
+split=train  config=question_only_chunk_query  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.0965  0.2253  0.1221 |   0.0850   0.1987
+   2  0.0720  0.3037  0.1058 |   0.0652   0.2699
+   4  0.0509  0.4109  0.0849 |   0.0430   0.3424
+   5  0.0446  0.4386  0.0766 |   0.0374   0.3628
+   8  0.0377  0.5614  0.0678 |   0.0313   0.4653
+  16  0.0265  0.6345  0.0493 |   0.0209   0.5383
+  32  0.0213  0.6685  0.0398 |   0.0157   0.5723
+  64  0.0203  0.6830  0.0378 |   0.0146   0.5868
+abstention signal=chunk_bm25_norm threshold=0.1182 (calibrated on train)
+false_abstention_rate=0.136 (19/140)  correct_abstention_rate=0.750 (21/28)  failure_to_abstain_rate=0.250  balanced_acc=0.807
+[loop] REJECTED: guardrail(s) failed: abstention.balanced_accuracy
+
+[loop] iteration 2: question_only_dual_abstention (rule: dominant failure 'wrong_section' matches tags)
+  hypothesis: Same as question_only_chunk_query, but abstention uses two checks: the contract-name (preamble) match at document level (doc_bm25_norm >= doc_threshold) AND the question's best passage match (chunk_bm25_norm >= threshold), jointly calibrated on train. The doc check should restore rejection of nonexistent-contract queries while keeping the section-ranking gain.
+  changes: {'query.mode': 'split', 'query.chunk_query': 'question', 'retrieval.doc_routing.enabled': True, 'abstention.signal': 'doc_and_chunk'}
+split=train  config=question_only_dual_abstention  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.0965  0.2253  0.1221 |   0.0922   0.2163
+   2  0.0720  0.3037  0.1058 |   0.0687   0.2875
+   4  0.0509  0.4109  0.0849 |   0.0492   0.3947
+   5  0.0446  0.4386  0.0766 |   0.0432   0.4205
+   8  0.0377  0.5614  0.0678 |   0.0366   0.5363
+  16  0.0265  0.6345  0.0493 |   0.0256   0.6093
+  32  0.0213  0.6685  0.0398 |   0.0204   0.6433
+  64  0.0203  0.6830  0.0378 |   0.0194   0.6578
+abstention signal=doc_and_chunk threshold=0.0757 doc_threshold=0.4473 (calibrated on train)
+false_abstention_rate=0.050 (7/140)  correct_abstention_rate=0.857 (24/28)  failure_to_abstain_rate=0.143  balanced_acc=0.904
+[loop] REJECTED: guardrail(s) failed: abstention.balanced_accuracy
+
+[loop] iteration 3: question_only_fullquery_abstention (rule: dominant failure 'wrong_section' matches tags)
+  hypothesis: Rank chunks of the routed contract with the question only (fixes header-chunk top-1 results), but keep the abstention evidence signal computed from the FULL query over the routed chunks (chunk_full_bm25_norm), as in the accepted config, so abstention behaviour is preserved while precision/recall improve.
+  changes: {'query.mode': 'split', 'query.chunk_query': 'question', 'retrieval.doc_routing.enabled': True, 'abstention.signal': 'chunk_full_bm25_norm'}
+split=train  config=question_only_fullquery_abstention  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.0965  0.2253  0.1221 |   0.0965   0.2253
+   2  0.0720  0.3037  0.1058 |   0.0702   0.2965
+   4  0.0509  0.4109  0.0849 |   0.0500   0.4037
+   5  0.0446  0.4386  0.0766 |   0.0439   0.4314
+   8  0.0377  0.5614  0.0678 |   0.0363   0.5501
+  16  0.0265  0.6345  0.0493 |   0.0253   0.6155
+  32  0.0213  0.6685  0.0398 |   0.0205   0.6474
+  64  0.0203  0.6830  0.0378 |   0.0194   0.6576
+abstention signal=chunk_full_bm25_norm threshold=0.2418 (calibrated on train)
+false_abstention_rate=0.036 (5/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.982
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0438; all guardrails passed
+
+[loop] iteration 4: stem_stopwords (rule: dominant failure 'wrong_section' matches tags)
+  hypothesis: Morphological variants (terminate/termination, assign/assignment) and function words hurt lexical matching; Snowball stemming + stopword removal should improve ranking.
+  changes: {'text.stemming': True, 'text.stopwords': True}
+split=train  config=stem_stopwords  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1660  0.3636  0.2063 |   0.1660   0.3636
+   2  0.1096  0.4513  0.1621 |   0.1096   0.4513
+   4  0.0743  0.5327  0.1229 |   0.0733   0.5255
+   5  0.0658  0.5457  0.1112 |   0.0651   0.5386
+   8  0.0539  0.5910  0.0943 |   0.0534   0.5839
+  16  0.0473  0.6725  0.0843 |   0.0470   0.6653
+  32  0.0453  0.6926  0.0808 |   0.0447   0.6813
+  64  0.0451  0.7005  0.0803 |   0.0445   0.6892
+abstention signal=chunk_full_bm25_norm threshold=0.2705 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0346; all guardrails passed
+[loop] SKIP hybrid_rrf: dense extra not installed
+
+[loop] iteration 5: doc_routing (queue: next predeclared candidate)
+  hypothesis: CUAD queries name the contract in a "Consider the ...;" preamble. Routing with that preamble to the single best-matching contract (BM25 over file-name title + first 3000 chars) should remove wrong-document passages and raise precision and recall.
+  changes: {'query.mode': 'split', 'query.chunk_query': 'full', 'retrieval.doc_routing.enabled': True, 'retrieval.doc_routing.top_n_docs': 1}
+split=train  config=doc_routing  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.0087  0.0143  0.0105 |   0.0087   0.0143
+   2  0.0110  0.0355  0.0166 |   0.0110   0.0355
+   4  0.0253  0.2019  0.0431 |   0.0253   0.2019
+   5  0.0297  0.2748  0.0512 |   0.0297   0.2748
+   8  0.0301  0.3749  0.0534 |   0.0301   0.3749
+  16  0.0240  0.5149  0.0441 |   0.0238   0.5077
+  32  0.0218  0.6320  0.0404 |   0.0214   0.6179
+  64  0.0207  0.6519  0.0383 |   0.0203   0.6378
+abstention signal=chunk_full_bm25_norm threshold=0.2705 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] REJECTED: retrieval.f1@5 delta -0.0600 < min_improvement 0.002
+
+[loop] iteration 6: doc_title_in_index (queue: next predeclared candidate)
+  hypothesis: Prepending the contract title (from the file name) to each chunk's indexing text lets chunk-level BM25 match party/agreement names without changing returned offsets.
+  changes: {'retrieval.index_doc_title': True}
+split=train  config=doc_title_in_index  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1637  0.3689  0.2056 |   0.1637   0.3689
+   2  0.1117  0.4591  0.1649 |   0.1117   0.4591
+   4  0.0722  0.5257  0.1197 |   0.0712   0.5186
+   5  0.0642  0.5388  0.1085 |   0.0634   0.5316
+   8  0.0522  0.5762  0.0912 |   0.0517   0.5690
+  16  0.0467  0.6656  0.0832 |   0.0464   0.6584
+  32  0.0450  0.6871  0.0802 |   0.0444   0.6757
+  64  0.0448  0.6949  0.0797 |   0.0441   0.6836
+abstention signal=chunk_full_bm25_norm threshold=0.2729 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] REJECTED: retrieval.f1@5 delta -0.0027 < min_improvement 0.002
+
+[loop] iteration 7: chunk_500 (queue: next predeclared candidate)
+  hypothesis: Gold spans have median ~317 chars; ~1000-char chunks carry mostly irrelevant text. Halving chunk size should raise precision (and F1) at a modest recall cost.
+  changes: {'chunking.max_chars': 500, 'chunking.overlap_chars': 75}
+split=train  config=chunk_500  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2373  0.3146  0.2440 |   0.2224   0.3032
+   2  0.1596  0.3838  0.2042 |   0.1461   0.3670
+   4  0.1021  0.4299  0.1514 |   0.0932   0.4070
+   5  0.0924  0.4521  0.1421 |   0.0848   0.4276
+   8  0.0770  0.5187  0.1254 |   0.0709   0.4926
+  16  0.0611  0.5699  0.1039 |   0.0570   0.5379
+  32  0.0553  0.5857  0.0946 |   0.0517   0.5538
+  64  0.0544  0.6057  0.0931 |   0.0507   0.5708
+abstention signal=chunk_full_bm25_norm threshold=0.2368 (calibrated on train)
+false_abstention_rate=0.079 (11/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.961
+[loop] REJECTED: guardrail(s) failed: retrieval.recall@5
+
+[loop] iteration 8: overlap_trim (queue: next predeclared candidate)
+  hypothesis: Instead of skipping overlapping same-document chunks, return their uncovered remainder so adjacent context is kept without double counting.
+  changes: {'retrieval.overlap_policy': 'trim'}
+split=train  config=overlap_trim  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1660  0.3636  0.2063 |   0.1660   0.3636
+   2  0.1280  0.4951  0.1872 |   0.1280   0.4951
+   4  0.0876  0.5902  0.1427 |   0.0866   0.5831
+   5  0.0751  0.6210  0.1265 |   0.0743   0.6138
+   8  0.0573  0.6709  0.1010 |   0.0568   0.6638
+  16  0.0437  0.7702  0.0799 |   0.0434   0.7630
+  32  0.0384  0.8344  0.0707 |   0.0381   0.8273
+  64  0.0372  0.8776  0.0686 |   0.0367   0.8634
+abstention signal=chunk_full_bm25_norm threshold=0.2705 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0153; all guardrails passed
+
+[loop] iteration 9: overlap_up (queue: next predeclared candidate)
+  hypothesis: More overlap (30% of chunk size) reduces gold spans being cut at chunk boundaries.
+  changes: {'chunking.overlap_chars': 300}
+split=train  config=overlap_up  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1745  0.4032  0.2228 |   0.1715   0.3976
+   2  0.1246  0.4740  0.1818 |   0.1231   0.4684
+   4  0.0881  0.5729  0.1416 |   0.0873   0.5673
+   5  0.0787  0.6174  0.1306 |   0.0780   0.6118
+   8  0.0614  0.6736  0.1073 |   0.0610   0.6680
+  16  0.0457  0.7806  0.0835 |   0.0454   0.7734
+  32  0.0379  0.8438  0.0700 |   0.0377   0.8367
+  64  0.0358  0.8778  0.0663 |   0.0353   0.8635
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0041; all guardrails passed
+
+[loop] iteration 10: chunk_300 (queue: next predeclared candidate)
+  hypothesis: Even smaller (~300 char, sentence-scale) chunks may further improve precision@k.
+  changes: {'chunking.max_chars': 300, 'chunking.overlap_chars': 45}
+split=train  config=chunk_300  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2748  0.2383  0.2322 |   0.2683   0.2286
+   2  0.2167  0.3162  0.2315 |   0.2111   0.3017
+   4  0.1559  0.4132  0.2059 |   0.1508   0.3952
+   5  0.1362  0.4274  0.1883 |   0.1317   0.4094
+   8  0.1077  0.4803  0.1624 |   0.1042   0.4624
+  16  0.0860  0.5674  0.1400 |   0.0825   0.5468
+  32  0.0734  0.6480  0.1239 |   0.0700   0.6240
+  64  0.0670  0.6699  0.1136 |   0.0640   0.6459
+abstention signal=chunk_full_bm25_norm threshold=0.1805 (calibrated on train)
+false_abstention_rate=0.043 (6/140)  correct_abstention_rate=0.893 (25/28)  failure_to_abstain_rate=0.107  balanced_acc=0.925
+[loop] REJECTED: guardrail(s) failed: retrieval.recall@5, abstention.balanced_accuracy
+
+[loop] iteration 11: bm25_params (queue: next predeclared candidate)
+  hypothesis: Contracts mix long boilerplate and short clauses; weaker length normalisation (b=0.5) and lower term saturation (k1=1.2) may rank short clause chunks better.
+  changes: {'retrieval.bm25.k1': 1.2, 'retrieval.bm25.b': 0.5}
+split=train  config=bm25_params  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1699  0.3937  0.2168 |   0.1670   0.3881
+   2  0.1262  0.4710  0.1834 |   0.1247   0.4654
+   4  0.0877  0.5784  0.1415 |   0.0864   0.5701
+   5  0.0770  0.6047  0.1278 |   0.0760   0.5964
+   8  0.0607  0.6665  0.1060 |   0.0600   0.6582
+  16  0.0458  0.7858  0.0838 |   0.0454   0.7760
+  32  0.0378  0.8427  0.0700 |   0.0374   0.8284
+  64  0.0358  0.8778  0.0663 |   0.0352   0.8564
+abstention signal=chunk_full_bm25_norm threshold=0.3047 (calibrated on train)
+false_abstention_rate=0.029 (4/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.986
+[loop] REJECTED: retrieval.f1@5 delta -0.0028 < min_improvement 0.002
+
+[loop] iteration 12: abstain_on_doc_signal (queue: next predeclared candidate)
+  hypothesis: Unanswerable queries often name nonexistent contracts; the document-routing match strength may separate them better than chunk-level evidence strength.
+  changes: {'abstention.signal': 'doc_bm25_norm'}
+split=train  config=abstain_on_doc_signal  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1745  0.4032  0.2228 |   0.1647   0.3675
+   2  0.1246  0.4740  0.1818 |   0.1181   0.4335
+   4  0.0881  0.5729  0.1416 |   0.0843   0.5300
+   5  0.0787  0.6174  0.1306 |   0.0755   0.5746
+   8  0.0614  0.6736  0.1073 |   0.0585   0.6201
+  16  0.0457  0.7806  0.0835 |   0.0432   0.7270
+  32  0.0379  0.8438  0.0700 |   0.0355   0.7903
+  64  0.0358  0.8778  0.0663 |   0.0334   0.8242
+abstention signal=doc_bm25_norm threshold=0.4889 (calibrated on train)
+false_abstention_rate=0.064 (9/140)  correct_abstention_rate=0.821 (23/28)  failure_to_abstain_rate=0.179  balanced_acc=0.879
+[loop] REJECTED: retrieval.f1@5 delta +0.0000 < min_improvement 0.002
+
+[loop] done. evaluated=12 accepted=overlap_up -> /home/afrozdebian/coding/JioStar/CIA/artifacts/loop/run3/accepted_config.yaml

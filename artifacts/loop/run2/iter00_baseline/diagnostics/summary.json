@@ -1,0 +1,15 @@
+{
+  "config": "iter00_baseline",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 13,
+    "correct_abstention": 28,
+    "false_abstention": 5,
+    "irrelevant_extra": 1,
+    "low_rank": 13,
+    "partial_span": 4,
+    "wrong_section": 104
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 140
+}

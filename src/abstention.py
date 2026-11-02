@@ -5,8 +5,16 @@ At equality (signal == threshold) the system ANSWERS.
 
 Signals (none of them is a probability):
   chunk_bm25_norm : best BM25 chunk score / query-dependent BM25 upper bound, in [0, 1)
+  chunk_full_bm25_norm : same as chunk_bm25_norm but always computed with the FULL query
+                    (contract preamble + question) over the routed chunks, even when ranking
+                    uses only the question part; decouples abstention from ranking.
   doc_bm25_norm   : same normalisation at document-routing level
   dense_max_cos   : best cosine similarity (dense / hybrid only), in [-1, 1]
+  doc_and_chunk   : two-part rule (needs doc routing): abstain iff
+                    doc_bm25_norm < doc_threshold  OR  chunk_bm25_norm < threshold.
+                    The doc part asks "does the named contract exist?", the chunk part
+                    asks "does the question match any passage of the routed contract?".
+                    Equality on either part => that part passes.
 Raw BM25, cosine and RRF scores are not comparable, so each config is calibrated
 separately, on TRAIN answerable queries + TRAIN unanswerable queries only.
 """
@@ -14,6 +22,8 @@ separately, on TRAIN answerable queries + TRAIN unanswerable queries only.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+import numpy as np
 
 
 @dataclass
@@ -23,10 +33,14 @@ class Decision:
     signal: str
     value: float | None
     threshold: float
+    doc_value: float | None = None
+    doc_threshold: float | None = None
 
 
 def decide(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Decision:
     name, thr = abst_cfg["signal"], float(abst_cfg["threshold"])
+    if name == "doc_and_chunk":
+        return _decide_dual(n_candidates, signals, abst_cfg)
     value = signals.get(name)
     if n_candidates == 0:
         return Decision(True, "no_candidates", name, value, thr)
@@ -37,6 +51,65 @@ def decide(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Deci
     if value < thr:
         return Decision(True, "below_threshold", name, value, thr)
     return Decision(False, "answered", name, value, thr)
+
+
+def _decide_dual(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Decision:
+    thr, dthr = float(abst_cfg["threshold"]), float(abst_cfg.get("doc_threshold", 0.0))
+    cv, dv = signals.get("chunk_bm25_norm"), signals.get("doc_bm25_norm")
+    mk = lambda ab, why: Decision(ab, why, "doc_and_chunk", cv, thr, dv, dthr)  # noqa: E731
+    if n_candidates == 0:
+        return mk(True, "no_candidates")
+    if not abst_cfg.get("enabled", True):
+        return mk(False, "answered")
+    if cv is None or dv is None:
+        raise KeyError("doc_and_chunk needs doc_bm25_norm and chunk_bm25_norm (enable doc routing)")
+    if dv < dthr:
+        return mk(True, "below_doc_threshold")
+    if cv < thr:
+        return mk(True, "below_threshold")
+    return mk(False, "answered")
+
+
+def _candidates(vals: list[float]) -> list[float]:
+    v = sorted(set(vals))
+    return [v[0]] + [(a + b) / 2 for a, b in zip(v, v[1:])] + [v[-1] + 1e-9]
+
+
+def calibrate_dual(pos: list[tuple[float, float]], neg: list[tuple[float, float]]) -> dict:
+    """Joint grid search over (doc_threshold, chunk_threshold); pairs are (doc, chunk).
+
+    Candidates per axis as in `calibrate`. Maximise balanced accuracy; ties broken by
+    higher answer rate on answerable, then smaller doc_threshold, then smaller chunk threshold.
+    """
+    if not pos and not neg:
+        return {"threshold": 0.0, "doc_threshold": 0.0, "balanced_accuracy": None, "n_pos": 0, "n_neg": 0}
+    allp = pos + neg
+    td = np.array(_candidates([d for d, _ in allp]))
+    tc = np.array(_candidates([c for _, c in allp]))
+
+    def answered(pairs):  # fraction answered for every (td, tc) combination, shape (A, B)
+        if not pairs:
+            return np.zeros((len(td), len(tc)))
+        arr = np.array(pairs, dtype=np.float64)
+        dm = (arr[None, :, 0] >= td[:, None]).astype(np.float64)  # (A, P)
+        cm = (arr[None, :, 1] >= tc[:, None]).astype(np.float64)  # (B, P)
+        return dm @ cm.T / len(pairs)
+
+    ans_pos, ans_neg = answered(pos), answered(neg)
+    if pos and neg:
+        ba = 0.5 * (ans_pos + (1.0 - ans_neg))
+    else:
+        ba = ans_pos if pos else 1.0 - ans_neg
+    best = None
+    for a in range(len(td)):
+        for b in range(len(tc)):
+            key = (round(float(ba[a, b]), 12), round(float(ans_pos[a, b]), 12), -td[a], -tc[b])
+            if best is None or key > best[0]:
+                best = (key, a, b)
+    _, a, b = best
+    return {"threshold": float(tc[b]), "doc_threshold": float(td[a]), "balanced_accuracy": float(ba[a, b]),
+            "answer_rate_answerable": float(ans_pos[a, b]), "abstain_rate_unanswerable": float(1 - ans_neg[a, b]),
+            "n_pos": len(pos), "n_neg": len(neg)}
 
 
 def calibrate(pos: list[float], neg: list[float]) -> dict:

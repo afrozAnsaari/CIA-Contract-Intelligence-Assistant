@@ -1,0 +1,16 @@
+{
+  "config": "iter11_abstain_on_doc_signal",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 17,
+    "correct_abstention": 22,
+    "failure_to_abstain": 6,
+    "false_abstention": 4,
+    "low_rank": 27,
+    "ok": 2,
+    "partial_span": 5,
+    "wrong_section": 85
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 144
+}

@@ -1,0 +1,15 @@
+{
+  "config": "iter09_chunk_300",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 6,
+    "correct_abstention": 25,
+    "failure_to_abstain": 3,
+    "false_abstention": 1,
+    "low_rank": 3,
+    "partial_span": 16,
+    "wrong_section": 114
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 143
+}

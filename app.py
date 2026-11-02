@@ -68,12 +68,11 @@ def main() -> None:
         return
 
     st.markdown(f"**Query:** {res.query}")
-    sv = "n/a" if res.signal_value is None else f"{res.signal_value:.4f}"
     if res.abstained:
         st.warning(f"**Abstained** - no sufficiently relevant evidence in the indexed contracts "
-                   f"(`{res.signal}` = {sv} < threshold {res.threshold:.4f}; reason: {res.abstention_reason}).")
+                   f"(reason: {res.abstention_reason}; {res.signal_text()}).")
         return
-    st.success(f"Found {len(res.passages)} passage(s)  (`{res.signal}` = {sv} >= threshold {res.threshold:.4f})")
+    st.success(f"Found {len(res.passages)} passage(s)  ({res.signal_text()})")
     for p in res.passages:
         with st.container(border=True):
             st.markdown(f"**#{p['rank']}** &nbsp; score `{p['score']:.4f}` &nbsp; "

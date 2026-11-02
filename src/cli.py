@@ -76,12 +76,11 @@ def print_result(res, as_json: bool) -> None:
         print(json.dumps(res.to_dict(), indent=2))
         return
     print(f"Query: {res.query}")
-    sv = "n/a" if res.signal_value is None else f"{res.signal_value:.4f}"
     if res.abstained:
         print(f"ABSTAINED: no sufficiently relevant evidence found "
-              f"(reason={res.abstention_reason}, {res.signal}={sv} < threshold={res.threshold:.4f})")
+              f"(reason={res.abstention_reason}; {res.signal_text()})")
     else:
-        print(f"Answered with {len(res.passages)} passage(s)  ({res.signal}={sv} >= threshold={res.threshold:.4f})")
+        print(f"Answered with {len(res.passages)} passage(s)  ({res.signal_text()})")
     for p in res.passages:
         print(f"\n#{p['rank']}  score={p['score']:.4f}  document={p['document_id']}  "
               f"offsets=[{p['start_offset']}, {p['end_offset']})")
@@ -124,18 +123,21 @@ def cmd_evaluate(a) -> int:
     print(format_summary(res))
     print(f"OK: results written to {out}")
     if a.split == "train" and res["calibration"] and a.write_threshold:
-        _write_threshold(a.config, res["calibration"]["threshold"])
+        _write_threshold(a.config, res["calibration"]["threshold"], res["calibration"].get("doc_threshold"))
     return 0
 
 
-def _write_threshold(config_path: str, thr: float) -> None:
+def _write_threshold(config_path: str, thr: float, doc_thr: float | None = None) -> None:
     import yaml
     from .config import resolve_path
     p = resolve_path(config_path)
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     raw.setdefault("abstention", {})["threshold"] = float(thr)
+    if doc_thr is not None:
+        raw["abstention"]["doc_threshold"] = float(doc_thr)
     p.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-    print(f"Wrote train-calibrated threshold {thr:.6f} into {p}")
+    extra = f" and doc_threshold {doc_thr:.6f}" if doc_thr is not None else ""
+    print(f"Wrote train-calibrated threshold {thr:.6f}{extra} into {p}")
 
 
 def cmd_improve(a) -> int:
@@ -180,6 +182,14 @@ def cmd_error_analysis(a) -> int:
     print(json.dumps(s, indent=2))
     print(f"OK: see {resolve_path(out) / 'error_analysis.md'} and failures.jsonl")
     return 0
+
+
+def cmd_demo_check(a) -> int:
+    from .demo_check import format_report, run_demo_check
+    from .pipeline import Pipeline
+    res = run_demo_check(Pipeline.from_config(a.config, overrides=None), top_k=a.top_k, n_types=a.n_types)
+    print(format_report(res))
+    return 0 if res["summary"]["C"][0] == res["summary"]["C"][1] else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -229,6 +239,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", default=None)
     s.add_argument("--per-category", type=int, default=4)
     s.set_defaults(func=cmd_error_analysis)
+    s = sub.add_parser("demo-check", help="PASS/FAIL battery: real train queries, negatives, bad inputs")
+    _add_config(s)
+    s.add_argument("--top-k", "-k", type=int, default=5)
+    s.add_argument("--n-types", type=int, default=10, help="number of question types to sample")
+    s.set_defaults(func=cmd_demo_check)
     return p
 
 

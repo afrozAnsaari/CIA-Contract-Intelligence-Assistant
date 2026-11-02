@@ -1,0 +1,64 @@
+name: overlap_up
+status: candidate
+data:
+  raw_dir: data/raw/legalbench-rag
+  benchmark: benchmarks/cuad.json
+  mini_n: 194
+  processed_dir: data/processed
+  unanswerable_path: data/unanswerable_queries.json
+chunking:
+  strategy: paragraph
+  max_chars: 1000
+  overlap_chars: 300
+  min_chars: 20
+  boundary_search_frac: 0.3
+text:
+  lowercase: true
+  stopwords: true
+  stemming: true
+query:
+  mode: split
+  chunk_query: full
+retrieval:
+  method: bm25
+  max_k: 64
+  overlap_policy: skip
+  min_trimmed_chars: 50
+  index_doc_title: true
+  bm25:
+    k1: 1.5
+    b: 0.75
+  dense:
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    batch_size: 32
+    query_prefix: ''
+    passage_prefix: ''
+  hybrid:
+    rrf_k: 60
+    bm25_weight: 1.0
+    dense_weight: 1.0
+    pool: 200
+  doc_routing:
+    enabled: true
+    top_n_docs: 1
+    doc_text: title_head
+    head_chars: 3000
+abstention:
+  enabled: true
+  signal: chunk_bm25_norm
+  threshold: 0.27617913017388246
+  doc_threshold: 0.0
+  calibrate: true
+evaluation:
+  k_values:
+  - 1
+  - 2
+  - 4
+  - 5
+  - 8
+  - 16
+  - 32
+  - 64
+  primary_k: 5
+output:
+  artifacts_dir: artifacts

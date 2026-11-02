@@ -101,3 +101,12 @@ def test_cli_help_runs():
 def test_real_search_smoke():
     r = Pipeline.from_config("configs/baseline.yaml").search("What is the governing law for this contract?", 3)
     assert r.passages or r.abstained
+
+
+def test_demo_check_runs(tiny):
+    from src.demo_check import format_report, run_demo_check
+    cfg, ds = tiny
+    res = run_demo_check(Pipeline(cfg, ds.documents), top_k=3, n_types=3)
+    assert res["summary"]["C"][0] == res["summary"]["C"][1]  # input handling must be robust
+    assert res["summary"]["A"][1] >= 1 and res["summary"]["B"][1] >= 1
+    assert "PASS" in format_report(res)

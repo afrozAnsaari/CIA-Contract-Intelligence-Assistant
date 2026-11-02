@@ -1,0 +1,16 @@
+{
+  "config": "iter06_doc_title_in_index",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 22,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "irrelevant_extra": 28,
+    "low_rank": 12,
+    "ok": 14,
+    "partial_span": 16,
+    "wrong_section": 45
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 126
+}

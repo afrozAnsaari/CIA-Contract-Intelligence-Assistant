@@ -67,9 +67,10 @@ DEFAULTS: dict[str, Any] = {
     },
     "abstention": {
         "enabled": True,
-        # Signal options: chunk_bm25_norm | doc_bm25_norm | dense_max_cos
+        # Signal options: chunk_bm25_norm | chunk_full_bm25_norm | doc_bm25_norm | dense_max_cos | doc_and_chunk
         "signal": "chunk_bm25_norm",
         "threshold": 0.0,  # abstain iff signal < threshold (equality => answer)
+        "doc_threshold": 0.0,  # only used by doc_and_chunk (applies to doc_bm25_norm)
         "calibrate": True,  # evaluation/loop recalibrate on TRAIN data only
     },
     "evaluation": {
@@ -148,10 +149,11 @@ def validate_config(cfg: dict) -> None:
     if q["mode"] not in {"full", "split"} or q["chunk_query"] not in {"full", "question"}:
         raise ValueError("query.mode must be full|split and query.chunk_query full|question")
     a = cfg["abstention"]
-    if a["signal"] not in {"chunk_bm25_norm", "doc_bm25_norm", "dense_max_cos"}:
+    if a["signal"] not in {"chunk_bm25_norm", "chunk_full_bm25_norm", "doc_bm25_norm", "dense_max_cos",
+                           "doc_and_chunk"}:
         raise ValueError(f"Unknown abstention.signal {a['signal']!r}")
-    if a["signal"] == "doc_bm25_norm" and not r["doc_routing"]["enabled"]:
-        raise ValueError("abstention.signal doc_bm25_norm requires retrieval.doc_routing.enabled")
+    if a["signal"] in {"doc_bm25_norm", "doc_and_chunk"} and not r["doc_routing"]["enabled"]:
+        raise ValueError(f"abstention.signal {a['signal']} requires retrieval.doc_routing.enabled")
     if a["signal"] == "dense_max_cos" and r["method"] == "bm25":
         raise ValueError("abstention.signal dense_max_cos requires method dense or hybrid")
 

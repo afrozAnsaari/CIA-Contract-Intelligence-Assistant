@@ -1,0 +1,16 @@
+{
+  "config": "iter09_overlap_up",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 7,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "irrelevant_extra": 37,
+    "low_rank": 15,
+    "ok": 24,
+    "partial_span": 11,
+    "wrong_section": 43
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 116
+}

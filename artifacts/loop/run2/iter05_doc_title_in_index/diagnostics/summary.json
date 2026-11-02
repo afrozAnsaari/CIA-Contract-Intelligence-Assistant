@@ -1,0 +1,15 @@
+{
+  "config": "iter05_doc_title_in_index",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 17,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "low_rank": 28,
+    "ok": 2,
+    "partial_span": 5,
+    "wrong_section": 85
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 138
+}

@@ -7,7 +7,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
-from .abstention import calibrate, decide
+from .abstention import calibrate, calibrate_dual, decide
 from .config import config_fingerprint, dump_config, resolve_path
 from .data import Dataset, Query
 from .metrics import abstention_metrics, mean_metrics, metrics_at_k
@@ -31,6 +31,13 @@ def run_queries(pipeline: Pipeline, queries: list[Query]) -> list[dict]:
 
 
 def calibrate_threshold(raw_ans: list[dict], raw_neg: list[dict], signal: str) -> dict:
+    if signal == "doc_and_chunk":
+        pair = lambda r: (r["signals"].get("doc_bm25_norm", 0.0), r["signals"].get("chunk_bm25_norm", 0.0))  # noqa: E731
+        res = calibrate_dual([pair(r) for r in raw_ans if r["passages"]],
+                             [pair(r) for r in raw_neg if r["passages"]])
+        res["signal"] = signal
+        res["note"] = "joint (doc, chunk) grid; queries with no candidates always abstain and are excluded"
+        return res
     pos = [r["signals"].get(signal, 0.0) for r in raw_ans if r["passages"]]
     neg = [r["signals"].get(signal, 0.0) for r in raw_neg if r["passages"]]
     res = calibrate(pos, neg)
@@ -52,6 +59,7 @@ def score(raw_ans: list[dict], raw_neg: list[dict], queries: dict[str, Query], d
         rec = {"qid": r["qid"], "query": r["query"], "split": r["split"], "answerable": r["answerable"],
                "category": r["category"], "abstained": d.abstained, "abstention_reason": d.reason,
                "signal": d.signal, "signal_value": d.value, "threshold": d.threshold,
+               "doc_signal_value": d.doc_value, "doc_threshold": d.doc_threshold,
                "routed_documents": r["routed_documents"],
                "retrieved": [{"rank": i + 1, "document_id": doc, "start_offset": s, "end_offset": e,
                               "score": sc, "preview": documents[doc][s:e][:PREVIEW_CHARS]}
@@ -96,6 +104,8 @@ def evaluate(cfg: dict, dataset: Dataset, split: str, *, calibrate_on_train: boo
         calibration = calibrate_threshold(raw_ans, raw_neg, cfg["abstention"]["signal"])
         cfg = json.loads(json.dumps(cfg))
         cfg["abstention"]["threshold"] = calibration["threshold"]
+        if "doc_threshold" in calibration:
+            cfg["abstention"]["doc_threshold"] = calibration["doc_threshold"]
         pipeline.cfg = cfg
     res = score(raw_ans, raw_neg, {q.qid: q for q in ans}, dataset.documents, cfg)
     res.update({
@@ -150,8 +160,9 @@ def format_summary(res: dict) -> str:
             lines.append(f"{k:>4} {r[f'precision@{k}']:7.4f} {r[f'recall@{k}']:7.4f} {r[f'f1@{k}']:7.4f} | "
                          f"{e[f'precision@{k}']:8.4f} {e[f'recall@{k}']:8.4f}")
     cal = res.get("calibration")
-    thr = res["config"]["abstention"]["threshold"]
-    lines.append(f"abstention signal={res['config']['abstention']['signal']} threshold={thr:.4f}"
+    ab = res["config"]["abstention"]
+    extra = f" doc_threshold={ab['doc_threshold']:.4f}" if ab["signal"] == "doc_and_chunk" else ""
+    lines.append(f"abstention signal={ab['signal']} threshold={ab['threshold']:.4f}{extra}"
                  + (" (calibrated on train)" if cal else " (from config)"))
     fmt = lambda v: "n/a" if v is None else f"{v:.3f}"  # noqa: E731
     lines.append(f"false_abstention_rate={fmt(a['false_abstention_rate'])} ({a['false_abstentions']}/{a['n_answerable']})  "

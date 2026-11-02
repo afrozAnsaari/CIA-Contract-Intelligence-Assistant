@@ -1,0 +1,99 @@
+{
+  "run_dir": "/home/afrozdebian/coding/JioStar/CIA/artifacts/loop/run2",
+  "iterations_evaluated": 12,
+  "skipped": [
+    "hybrid_rrf"
+  ],
+  "min_iterations_required": 5,
+  "met_min_iterations": true,
+  "accepted_candidate": "overlap_up",
+  "accepted_metrics": {
+    "n_train_answerable": 140,
+    "n_train_unanswerable": 28,
+    "precision@1": 0.1744603288384226,
+    "e2e_precision@1": 0.17153727395950014,
+    "recall@1": 0.4031767826604825,
+    "e2e_recall@1": 0.39756158860598206,
+    "f1@1": 0.2228298683107058,
+    "e2e_f1@1": 0.21898516420214947,
+    "precision@2": 0.12458996468888063,
+    "e2e_precision@2": 0.12307762129796951,
+    "recall@2": 0.47396762776649076,
+    "e2e_recall@2": 0.46835243371199037,
+    "f1@2": 0.18175902622283913,
+    "e2e_f1@2": 0.17937612702881975,
+    "precision@4": 0.08807474560332285,
+    "e2e_precision@4": 0.08725219812539857,
+    "recall@4": 0.5728754796423102,
+    "e2e_recall@4": 0.5672602855878098,
+    "f1@4": 0.14162120924561744,
+    "e2e_f1@4": 0.14018630736758408,
+    "precision@5": 0.07873192488432046,
+    "e2e_precision@5": 0.0780445933479323,
+    "recall@5": 0.6174162812870057,
+    "e2e_recall@5": 0.6118010872325053,
+    "f1@5": 0.13055368264771713,
+    "e2e_f1@5": 0.12932893555198874,
+    "precision@8": 0.06141761708067827,
+    "e2e_precision@8": 0.06097464919584992,
+    "recall@8": 0.6736179763137359,
+    "e2e_recall@8": 0.6680027822592355,
+    "f1@8": 0.10733952710425491,
+    "e2e_f1@8": 0.10651837023914199,
+    "precision@16": 0.04571392768521091,
+    "e2e_precision@16": 0.045415901890762576,
+    "recall@16": 0.7805610218456808,
+    "e2e_recall@16": 0.7734181647028237,
+    "f1@16": 0.0835417905828498,
+    "e2e_f1@16": 0.08296961233664779,
+    "precision@32": 0.03786295366069444,
+    "e2e_precision@32": 0.03765060729472222,
+    "recall@32": 0.8438251448090457,
+    "e2e_recall@32": 0.8366822876661886,
+    "f1@32": 0.07004258670317376,
+    "e2e_f1@32": 0.06963015494513373,
+    "precision@64": 0.035826317800041606,
+    "e2e_precision@64": 0.03532947546052417,
+    "recall@64": 0.8778111564379198,
+    "e2e_recall@64": 0.8635254421522056,
+    "f1@64": 0.06630122712734765,
+    "e2e_f1@64": 0.06534159798555488,
+    "abstention.n_answerable": 140,
+    "abstention.n_unanswerable": 28,
+    "abstention.false_abstentions": 3,
+    "abstention.false_abstention_rate": 0.02142857142857143,
+    "abstention.correct_abstentions": 28,
+    "abstention.correct_abstention_rate": 1.0,
+    "abstention.failures_to_abstain": 0,
+    "abstention.failure_to_abstain_rate": 0.0,
+    "abstention.balanced_accuracy": 0.9892857142857143,
+    "offset_errors": 0,
+    "threshold": 0.27386511045480977
+  },
+  "protocol": {
+    "primary_metric": "retrieval.f1@5",
+    "min_improvement": 0.002,
+    "guardrails": [
+      {
+        "metric": "retrieval.recall@5",
+        "max_drop": 0.05
+      },
+      {
+        "metric": "retrieval.precision@1",
+        "max_drop": 0.05
+      },
+      {
+        "metric": "abstention.balanced_accuracy",
+        "max_drop": 0.05
+      },
+      {
+        "metric": "offset_errors",
+        "must_equal": 0
+      }
+    ],
+    "max_iterations": 12,
+    "min_iterations": 5
+  },
+  "unanswerable_sha256": "77d8b48ab6c6d0a119d63dc3ef54a1f43cc50530ab34240b6029461a24b2f7f7",
+  "finished": "2026-11-02T09:36:35+00:00"
+}
