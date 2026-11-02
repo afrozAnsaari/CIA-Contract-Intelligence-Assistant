@@ -1,0 +1,15 @@
+{
+  "config": "iter06_overlap_trim",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 13,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "low_rank": 21,
+    "ok": 2,
+    "partial_span": 6,
+    "wrong_section": 95
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 138
+}

@@ -1,0 +1,14 @@
+{
+  "config": "iter05_chunk_500",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 19,
+    "correct_abstention": 28,
+    "false_abstention": 10,
+    "low_rank": 5,
+    "partial_span": 12,
+    "wrong_section": 94
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 140
+}

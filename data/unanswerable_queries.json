@@ -1,0 +1,356 @@
+{
+  "description": "Hand-authored unanswerable queries for LegalBench-RAG-mini (CUAD, 29 indexed contracts). FROZEN: do not edit after the improvement loop starts. Split is computed at load time with assign_split(query).",
+  "version": "1.0",
+  "created": "2026-11-02",
+  "method": "Authored by category (absent topic, nonexistent contract/party, information not specified in a real contract, off-domain). Each query lists absence_check_terms; validate-data verifies none occurs (case-insensitive) in any indexed contract. Absence was checked lexically against the indexed corpus only; this is not a legal determination.",
+  "queries": [
+    {
+      "id": "unans-001",
+      "category": "absent_topic",
+      "query": "What cryptocurrency or blockchain token is used to settle payments under this contract?",
+      "absence_check_terms": [
+        "cryptocurr",
+        "blockchain",
+        "bitcoin"
+      ],
+      "rationale": "No indexed contract mentions cryptocurrency, blockchain or bitcoin."
+    },
+    {
+      "id": "unans-002",
+      "category": "absent_topic",
+      "query": "What is the maximum altitude at which the leased aircraft may be operated?",
+      "absence_check_terms": [
+        "aircraft",
+        "altitude"
+      ],
+      "rationale": "No indexed contract concerns aircraft; neither term occurs."
+    },
+    {
+      "id": "unans-003",
+      "category": "absent_topic",
+      "query": "What are the HIPAA business associate obligations in this agreement?",
+      "absence_check_terms": [
+        "HIPAA",
+        "business associate"
+      ],
+      "rationale": "No contract references HIPAA or business-associate obligations."
+    },
+    {
+      "id": "unans-004",
+      "category": "absent_topic",
+      "query": "What rules govern the use of drones or unmanned aerial vehicles by the parties?",
+      "absence_check_terms": [
+        "drone",
+        "unmanned"
+      ],
+      "rationale": "Drones/UAVs are not mentioned in any indexed contract."
+    },
+    {
+      "id": "unans-005",
+      "category": "absent_topic",
+      "query": "What restrictions does the contract place on using generative artificial intelligence or machine learning models?",
+      "absence_check_terms": [
+        "artificial intelligence",
+        "generative",
+        "machine learning"
+      ],
+      "rationale": "No contract addresses AI or machine learning."
+    },
+    {
+      "id": "unans-006",
+      "category": "absent_topic",
+      "query": "How is the esports tournament prize pool divided between the competing teams?",
+      "absence_check_terms": [
+        "esport",
+        "prize",
+        "tournament"
+      ],
+      "rationale": "No esports, prize or tournament terms in the corpus."
+    },
+    {
+      "id": "unans-007",
+      "category": "absent_topic",
+      "query": "What is the guaranteed energy output of the photovoltaic panels under this agreement?",
+      "absence_check_terms": [
+        "photovoltaic"
+      ],
+      "rationale": "No contract concerns photovoltaic/solar generation output."
+    },
+    {
+      "id": "unans-008",
+      "category": "absent_topic",
+      "query": "What cancellation fee applies to a yacht charter booking under this contract?",
+      "absence_check_terms": [
+        "yacht"
+      ],
+      "rationale": "No contract concerns yacht charters."
+    },
+    {
+      "id": "unans-009",
+      "category": "absent_topic",
+      "query": "What are the obligations of the casino operator regarding gambling licenses and lottery draws?",
+      "absence_check_terms": [
+        "casino",
+        "gambling",
+        "lottery"
+      ],
+      "rationale": "No contract concerns casinos, gambling or lotteries."
+    },
+    {
+      "id": "unans-010",
+      "category": "absent_topic",
+      "query": "What cybersecurity incident response steps are required after a ransomware attack?",
+      "absence_check_terms": [
+        "cybersecurity",
+        "ransomware"
+      ],
+      "rationale": "Neither cybersecurity nor ransomware is addressed in any contract."
+    },
+    {
+      "id": "unans-011",
+      "category": "absent_topic",
+      "query": "Which party is responsible for sponsoring immigration petitions for foreign workers?",
+      "absence_check_terms": [
+        "immigration"
+      ],
+      "rationale": "No contract addresses immigration sponsorship."
+    },
+    {
+      "id": "unans-012",
+      "category": "absent_topic",
+      "query": "What veterinary care standards apply to animals boarded under this agreement?",
+      "absence_check_terms": [
+        "veterinar"
+      ],
+      "rationale": "No contract concerns veterinary care or animal boarding."
+    },
+    {
+      "id": "unans-013",
+      "category": "absent_topic",
+      "query": "What maintenance schedule applies to the submarine tsunami-warning buoys?",
+      "absence_check_terms": [
+        "submarine",
+        "tsunami"
+      ],
+      "rationale": "No contract concerns marine warning equipment."
+    },
+    {
+      "id": "unans-014",
+      "category": "nonexistent_contract",
+      "query": "Consider the Software License Agreement between Zentrova Analytics Ltd and Kestrel Marine Holdings; What is the governing law for this contract?",
+      "absence_check_terms": [
+        "Zentrova",
+        "Kestrel"
+      ],
+      "rationale": "Neither party exists in the indexed corpus, so no governing-law clause of this contract exists."
+    },
+    {
+      "id": "unans-015",
+      "category": "nonexistent_contract",
+      "query": "Consider the Merger Agreement between Bluefin Robotics Corp and Halvorsen Shipping AS; What termination fee is payable by the target company?",
+      "absence_check_terms": [
+        "Bluefin",
+        "Halvorsen"
+      ],
+      "rationale": "No such merger agreement or parties are indexed (and no merger agreements are in the mini corpus)."
+    },
+    {
+      "id": "unans-016",
+      "category": "nonexistent_contract",
+      "query": "Consider the Lease Agreement between Quillon Properties LLC and Marrowgate Foods Inc.; What is the monthly rent for the premises?",
+      "absence_check_terms": [
+        "Quillon",
+        "Marrowgate"
+      ],
+      "rationale": "Fictitious lease; parties do not occur in any indexed contract."
+    },
+    {
+      "id": "unans-017",
+      "category": "nonexistent_contract",
+      "query": "Consider the Employment Agreement between Orvane Biologics and Dr. Petra Lindqvist; What is the annual base salary?",
+      "absence_check_terms": [
+        "Orvane",
+        "Lindqvist"
+      ],
+      "rationale": "Fictitious employment agreement; salary clauses of other contracts do not answer it."
+    },
+    {
+      "id": "unans-018",
+      "category": "nonexistent_contract",
+      "query": "Consider the Franchise Agreement between Saltmarsh Coffee Co. and Tidewater Brands; What is the initial franchise fee?",
+      "absence_check_terms": [
+        "Saltmarsh",
+        "Tidewater"
+      ],
+      "rationale": "Fictitious franchise agreement; the indexed franchise agreement is an unrelated gas utility franchise."
+    },
+    {
+      "id": "unans-019",
+      "category": "nonexistent_contract",
+      "query": "Consider the Distribution Agreement between Nordhaven Pharma GmbH and Calyx Medical Pty Ltd; Is there a minimum commitment required under this contract?",
+      "absence_check_terms": [
+        "Nordhaven",
+        "Calyx"
+      ],
+      "rationale": "Fictitious distribution agreement; parties absent from corpus."
+    },
+    {
+      "id": "unans-020",
+      "category": "nonexistent_contract",
+      "query": "Consider the Joint Venture Agreement between Ferrovia Andina SA and Glimmerstone Mining Ltd; What is the expiration date of this contract?",
+      "absence_check_terms": [
+        "Ferrovia",
+        "Glimmerstone"
+      ],
+      "rationale": "Fictitious joint venture; other JV agreements in the corpus are between different parties."
+    },
+    {
+      "id": "unans-021",
+      "category": "nonexistent_contract",
+      "query": "Consider the Sponsorship Agreement between Velocity Esports Arena and Pinecrest Beverages; What licenses are granted under this contract?",
+      "absence_check_terms": [
+        "Velocity",
+        "Pinecrest",
+        "esport"
+      ],
+      "rationale": "Fictitious sponsorship; parties absent from corpus."
+    },
+    {
+      "id": "unans-022",
+      "category": "nonexistent_contract",
+      "query": "Consider the Credit Agreement between Harborline Bank N.A. and Elmstead Logistics; What is the interest rate margin on the revolving credit facility?",
+      "absence_check_terms": [
+        "Harborline",
+        "Elmstead"
+      ],
+      "rationale": "Fictitious credit agreement; no credit agreements are indexed."
+    },
+    {
+      "id": "unans-023",
+      "category": "nonexistent_contract",
+      "query": "Consider the Settlement Agreement between Corvidae Software and the State of Nevada; What amount was paid in settlement?",
+      "absence_check_terms": [
+        "Corvidae"
+      ],
+      "rationale": "Fictitious settlement agreement; party absent from corpus."
+    },
+    {
+      "id": "unans-024",
+      "category": "nonexistent_contract",
+      "query": "Consider the Endorsement Agreement between Papa John's International and Serena Williams; What endorsement fee is paid to Serena Williams?",
+      "absence_check_terms": [
+        "Serena"
+      ],
+      "rationale": "Hard negative: Papa John's is a real indexed party but its endorsement agreement is with a different celebrity; no agreement with Serena Williams exists."
+    },
+    {
+      "id": "unans-025",
+      "category": "unspecified_info",
+      "query": "Consider the Service Agreement between BicycleTX Ltd and Nigel Crockett for Chief Business Officer Position; What is Nigel Crockett's passport number and date of birth?",
+      "absence_check_terms": [
+        "passport",
+        "date of birth"
+      ],
+      "rationale": "The contract exists but does not state passport number or date of birth."
+    },
+    {
+      "id": "unans-026",
+      "category": "unspecified_info",
+      "query": "Consider the Cooperation Agreement of HPIL Holding; What was HPIL Holding's closing share price on NASDAQ on the signing date?",
+      "absence_check_terms": [
+        "share price",
+        "closing price",
+        "NASDAQ"
+      ],
+      "rationale": "Market data is external to the contract; no share price or NASDAQ mention."
+    },
+    {
+      "id": "unans-027",
+      "category": "unspecified_info",
+      "query": "Consider the Sponsorship Agreement of Vitamin Shoppe; What is the sponsored athlete's marathon personal-best time?",
+      "absence_check_terms": [
+        "marathon",
+        "personal best"
+      ],
+      "rationale": "Athletic performance data is not contained in the contract."
+    },
+    {
+      "id": "unans-028",
+      "category": "unspecified_info",
+      "query": "Consider the Transportation Services Agreement of Dynamex; What is the average fuel efficiency of the delivery trucks in miles per gallon?",
+      "absence_check_terms": [
+        "miles per gallon",
+        "mpg"
+      ],
+      "rationale": "Vehicle fuel efficiency is not specified in the contract."
+    },
+    {
+      "id": "unans-029",
+      "category": "unspecified_info",
+      "query": "Consider the Endorsement Agreement of Holiday RV Superstores; What is the endorser's childhood hometown?",
+      "absence_check_terms": [
+        "hometown",
+        "childhood"
+      ],
+      "rationale": "Biographical details of the endorser are not in the contract."
+    },
+    {
+      "id": "unans-030",
+      "category": "unspecified_info",
+      "query": "Consider the Non-Competition Agreement of Western Copper; What is the current copper price on the London Metal Exchange?",
+      "absence_check_terms": [
+        "London Metal Exchange"
+      ],
+      "rationale": "Commodity market prices are external information not in the contract."
+    },
+    {
+      "id": "unans-031",
+      "category": "off_domain",
+      "query": "Who won the FIFA World Cup in 2018?",
+      "absence_check_terms": [
+        "FIFA",
+        "World Cup"
+      ],
+      "rationale": "General-knowledge sports question unrelated to the contracts."
+    },
+    {
+      "id": "unans-032",
+      "category": "off_domain",
+      "query": "How long should sourdough bread dough be proofed before baking?",
+      "absence_check_terms": [
+        "sourdough"
+      ],
+      "rationale": "Cooking question unrelated to the contracts."
+    },
+    {
+      "id": "unans-033",
+      "category": "off_domain",
+      "query": "How do I reset the password on my home Wi-Fi router?",
+      "absence_check_terms": [
+        "router",
+        "Wi-Fi"
+      ],
+      "rationale": "Consumer tech-support question unrelated to the contracts."
+    },
+    {
+      "id": "unans-034",
+      "category": "off_domain",
+      "query": "What is the boiling point of water at sea level in degrees Celsius?",
+      "absence_check_terms": [
+        "boiling",
+        "Celsius"
+      ],
+      "rationale": "Physics question unrelated to the contracts."
+    },
+    {
+      "id": "unans-035",
+      "category": "off_domain",
+      "query": "What is the capital city of Mongolia?",
+      "absence_check_terms": [
+        "Mongolia",
+        "Ulaanbaatar"
+      ],
+      "rationale": "Geography question unrelated to the contracts."
+    }
+  ]
+}

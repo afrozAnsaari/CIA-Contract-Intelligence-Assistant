@@ -1,0 +1,44 @@
+[project]
+name = "cia"
+version = "0.1.0"
+description = "Contract Intelligence Assistant: offset-exact passage retrieval with abstention over LegalBench-RAG-mini (CUAD)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.4",
+    "pyyaml>=6.0.3",
+    "snowballstemmer>=3.1.1",
+    "streamlit>=1.66.1",
+]
+
+[project.optional-dependencies]
+# Optional dense / hybrid retrieval experiments (CPU-only torch wheels).
+dense = [
+    "sentence-transformers>=3",
+    "torch>=2.15.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "real_data: requires the prepared LegalBench-RAG data under data/raw (run `python -m src.cli prepare-data` first)",
+    "dense: requires the optional `dense` extra (sentence-transformers + model download)",
+]
+addopts = "-ra"

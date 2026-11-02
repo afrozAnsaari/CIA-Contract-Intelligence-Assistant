@@ -1,0 +1,22 @@
+# Python / env
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.env
+*.egg-info/
+
+# Raw benchmark data (copied from the LegalBench-RAG download by `prepare-data`)
+data/raw/
+data/processed/
+
+# Generated artifacts: indexes, caches, bulky per-query outputs
+artifacts/index/
+artifacts/cache/
+artifacts/**/per_query*.jsonl
+artifacts/**/retrieved*.jsonl
+artifacts/tmp/
+
+# Never commit the assignment brief
+*.pdf
+prompt.md

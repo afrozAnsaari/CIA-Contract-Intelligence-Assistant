@@ -1,0 +1,14 @@
+name: provisional
+status: provisional
+chunking:
+  strategy: paragraph
+  max_chars: 1000
+  overlap_chars: 150
+retrieval:
+  method: bm25
+  overlap_policy: skip
+abstention:
+  enabled: true
+  signal: chunk_bm25_norm
+  threshold: 0.24180059226281184
+  calibrate: true
