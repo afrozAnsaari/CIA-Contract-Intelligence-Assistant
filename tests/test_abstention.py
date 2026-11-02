@@ -126,3 +126,33 @@ def test_stopword_only_query_abstains(tiny):
     cfg, ds = tiny
     r = Pipeline(cfg, ds.documents).search("the of and", 3)
     assert r.abstained and r.abstention_reason == "no_candidates" and r.passages == []
+
+
+IQ = {"enabled": True, "signal": "identity_and_question", "threshold": 0.2, "doc_threshold": 0.4}
+
+
+def test_identity_and_question_rule():
+    ok = {"preamble_bm25_norm": 0.4, "chunk_bm25_norm": 0.2}
+    assert not decide(2, ok, IQ).abstained  # equality on both parts answers
+    d = decide(2, {"preamble_bm25_norm": 0.39, "chunk_bm25_norm": 0.9}, IQ)
+    assert d.abstained and d.reason == "below_doc_threshold"
+    d = decide(2, {"preamble_bm25_norm": 0.9, "chunk_bm25_norm": 0.19}, IQ)
+    assert d.abstained and d.reason == "below_threshold"
+
+
+def test_identity_and_question_requires_split_routing():
+    from src.config import load_config
+    with pytest.raises(ValueError):
+        load_config(None, {"abstention.signal": "identity_and_question"})
+
+
+def test_preamble_signal_identity_explicit_document(tiny):
+    cfg, ds = tiny
+    c = apply_overrides(cfg, {"query.mode": "split", "query.chunk_query": "question",
+                              "retrieval.doc_routing.enabled": True})
+    p = Pipeline(c, ds.documents)
+    named = p.retrieve("Consider the License Agreement between AlphaCo Inc. and Gamma LLC; governing law?", 3)
+    fake = p.retrieve("Consider the License Agreement between Zorblax Ltd and Quintessor Plc; governing law?", 3)
+    assert named.signals["preamble_bm25_norm"] > fake.signals["preamble_bm25_norm"]
+    explicit = p.retrieve("governing law", 3, document_id="cuad/AlphaCo_License Agreement.txt")
+    assert explicit.signals["preamble_bm25_norm"] == 1.0  # identity given by the user

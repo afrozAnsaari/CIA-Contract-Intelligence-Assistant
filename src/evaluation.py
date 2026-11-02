@@ -7,7 +7,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
-from .abstention import calibrate, calibrate_dual, decide
+from .abstention import DUAL_SIGNALS, calibrate, calibrate_dual, decide
 from .config import config_fingerprint, dump_config, resolve_path
 from .data import Dataset, Query
 from .metrics import abstention_metrics, mean_metrics, metrics_at_k
@@ -26,18 +26,21 @@ def run_queries(pipeline: Pipeline, queries: list[Query]) -> list[dict]:
             "qid": q.qid, "query": q.query, "split": q.split, "answerable": q.answerable,
             "category": q.category, "signals": r.signals, "routed_documents": r.routed_documents,
             "unresolved_contract": r.unresolved_contract,
+            "expansion_terms": {t: w for t, w in r.ranking_terms.items() if w < 1.0},
             "passages": [(p.document_id, p.start_offset, p.end_offset, p.score) for p in r.passages],
         })
     return out
 
 
 def calibrate_threshold(raw_ans: list[dict], raw_neg: list[dict], signal: str) -> dict:
-    if signal == "doc_and_chunk":
-        pair = lambda r: (r["signals"].get("doc_bm25_norm", 0.0), r["signals"].get("chunk_bm25_norm", 0.0))  # noqa: E731
+    if signal in DUAL_SIGNALS:
+        id_key, ans_key = DUAL_SIGNALS[signal]
+        pair = lambda r: (r["signals"].get(id_key, 0.0), r["signals"].get(ans_key, 0.0))  # noqa: E731
         res = calibrate_dual([pair(r) for r in raw_ans if r["passages"]],
                              [pair(r) for r in raw_neg if r["passages"]])
         res["signal"] = signal
-        res["note"] = "joint (doc, chunk) grid; queries with no candidates always abstain and are excluded"
+        res["note"] = (f"joint ({id_key}, {ans_key}) grid; queries with no candidates always abstain "
+                       "and are excluded")
         return res
     pos = [r["signals"].get(signal, 0.0) for r in raw_ans if r["passages"]]
     neg = [r["signals"].get(signal, 0.0) for r in raw_neg if r["passages"]]
@@ -63,7 +66,7 @@ def score(raw_ans: list[dict], raw_neg: list[dict], queries: dict[str, Query], d
                "category": r["category"], "abstained": d.abstained, "abstention_reason": d.reason,
                "signal": d.signal, "signal_value": d.value, "threshold": d.threshold,
                "doc_signal_value": d.doc_value, "doc_threshold": d.doc_threshold,
-               "routed_documents": r["routed_documents"],
+               "routed_documents": r["routed_documents"], "expansion_terms": r.get("expansion_terms", {}),
                "retrieved": [{"rank": i + 1, "document_id": doc, "start_offset": s, "end_offset": e,
                               "score": sc, "preview": documents[doc][s:e][:PREVIEW_CHARS]}
                              for i, (doc, s, e, sc) in enumerate(r["passages"][:STORE_TOP])]}

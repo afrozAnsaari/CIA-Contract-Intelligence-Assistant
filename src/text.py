@@ -17,6 +17,15 @@ STOPWORDS = frozenset(
     which while who whom why will with would you your""".split()
 )
 
+# Words that CUAD question templates use for every clause type ("Does this contract include
+# any ...", "Is there a ... clause in this agreement?"). They carry no information about
+# WHICH clause is meant, yet match nearly every chunk. Removed from the ranking query only
+# when query.drop_generic_terms is on.
+GENERIC_LEGAL_TERMS = frozenset(
+    """contract contracts agreement agreements clause clauses provision provisions include includes
+    included including hereunder herein hereof hereby""".split()
+)
+
 _STEMMER = snowballstemmer.stemmer("english")
 
 

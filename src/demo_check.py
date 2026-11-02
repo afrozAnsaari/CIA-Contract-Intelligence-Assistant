@@ -97,10 +97,24 @@ def run_demo_check(pipe: Pipeline, top_k: int = 5, n_types: int = 10) -> dict:
         rows.append(("C input", "no contract named (require_contract)", "abstain: contract_not_identified",
                      f"{r.abstention_reason}; suggestions={len(r.contract_candidates)}",
                      r.abstained and r.abstention_reason == "contract_not_identified" and not r.passages, ""))
-        doc = sorted(pipe.documents)[0]
-        r = pipe.search("What is the governing law for this contract?", top_k, document=doc)
-        rows.append(("C input", "document filter keeps results in that contract", "all passages from it",
-                     f"{len(r.passages)} passages", all(p["document_id"] == doc for p in r.passages), r.signal_text()))
+        # Document filter: a KNOWN answerable (contract, question) pair taken from a train query,
+        # so the check fails if nothing is returned (an empty list must not pass vacuously).
+        q0 = next((q for q in sorted(ds.split("train"), key=lambda q: q.qid)
+                   if split_query(q.query)[1].lower().startswith("what is the governing law")), None)
+        if q0 is not None:
+            doc = q0.gold[0].document_id
+            question = split_query(q0.query)[1]
+            r = pipe.search(question, top_k, document=doc)
+            ok = (not r.abstained and len(r.passages) >= 1 and all(p["document_id"] == doc for p in r.passages)
+                  and _overlaps_gold(r.passages, q0.gold))
+            rows.append(("C input", f"document filter ({doc.split('/')[-1][:40]}...) + bare question",
+                         ">= 1 passage, all from that contract, gold found",
+                         f"{len(r.passages)} passages, abstained={r.abstained}", ok, r.signal_text()))
+            other = next(d for d in sorted(pipe.documents) if d != doc)
+            r = pipe.search(q0.query, top_k, document=other)  # query names `doc`, filter says `other`
+            rows.append(("C input", "document filter overrides the contract named in the query",
+                         "no passage from any other contract", f"{len(r.passages)} passages",
+                         all(p["document_id"] == other for p in r.passages), r.signal_text()))
     else:
         expect_ok("no 'Consider ...;' preamble", "What is the governing law for this contract?")
 

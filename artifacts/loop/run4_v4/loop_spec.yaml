@@ -1,0 +1,81 @@
+spec_version: 4
+protocol:
+  primary_metric: retrieval.f1@5
+  min_improvement: 0.002
+  guardrails:
+  - metric: retrieval.recall@5
+    max_drop: 0.05
+  - metric: retrieval.precision@1
+    max_drop: 0.05
+  - metric: abstention.balanced_accuracy
+    max_drop: 0.05
+  - metric: offset_errors
+    must_equal: 0
+  max_iterations: 10
+  min_iterations: 5
+candidates:
+- id: v4_drop_generic_terms
+  tags:
+  - wrong_section
+  - low_rank
+  hypothesis: CUAD question templates contain words (contract, agreement, clause,
+    include) that match almost every chunk; e.g. for "Does this contract include an
+    exclusivity agreement?" the term "agreement" pulls up governing-law boilerplate.
+    Dropping them from the RANKING query should rank the clause higher. Abstention
+    signals are unchanged.
+  changes:
+    query.drop_generic_terms: true
+- id: v4_query_expansion
+  tags:
+  - wrong_section
+  - low_rank
+  hypothesis: Gold clauses often use drafting vocabulary absent from the question
+    ("audit rights" -> books, records, inspect; "termination for convenience" -> at
+    any time, without cause). Adding a controlled, concept-keyed vocabulary at half
+    weight should recover these.
+  changes:
+    query.expand: true
+    query.expansion_weight: 0.5
+- id: v4_expansion_weight_0_3
+  tags: []
+  hypothesis: A lower expansion weight may keep the vocabulary benefit with less topic
+    drift.
+  changes:
+    query.expansion_weight: 0.3
+- id: v4_refine_600
+  tags:
+  - irrelevant_extra
+  - chunk_boundary
+  hypothesis: Returned passages (~785 chars) are much longer than gold spans (median
+    317). Shrinking each passage to its best <=600-char sentence window should raise
+    precision while the ranking (and so the chunk that contains the clause) is unchanged.
+  changes:
+    retrieval.refine.enabled: true
+    retrieval.refine.max_chars: 600
+- id: v4_refine_400
+  tags:
+  - irrelevant_extra
+  hypothesis: A tighter 400-char window may raise precision further; tests the recall
+    cost.
+  changes:
+    retrieval.refine.enabled: true
+    retrieval.refine.max_chars: 400
+- id: v4_chunk_600
+  tags:
+  - irrelevant_extra
+  hypothesis: Smaller chunks (600/120) may localise clauses better now that ranking
+    uses the question only; previously rejected sizes were tested with an older ranking
+    pipeline.
+  changes:
+    chunking.max_chars: 600
+    chunking.overlap_chars: 120
+- id: v4_split_abstention_signal
+  tags:
+  - false_abstention
+  hypothesis: The full-query signal requires ONE chunk to match both preamble (header)
+    and question (clause); long preambles therefore depress it (BicycleTX IP false
+    abstention). Normalising preamble and question matches separately should reduce
+    false abstentions; may admit some real-contract negatives, checked by the balanced-accuracy
+    guardrail.
+  changes:
+    abstention.signal: chunk_split_bm25_norm

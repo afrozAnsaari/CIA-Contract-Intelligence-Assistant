@@ -61,6 +61,14 @@ characters are gold text on average.
 - the unanswerable set was committed about four minutes after the first loop run started;
 - the original spec-v2 loop run survives only in console output.
 
+**Post-test improvement, not test-evaluated** (§11). A later train-only loop run (run 4)
+accepted `configs/candidate_v4.yaml`: generic-term removal plus controlled query expansion for
+the ranking query. On train, F1@5 rose from 0.1306 to 0.1743 and recall@5 from 0.6174 to
+0.8095, with abstention unchanged (3/140 false, 28/28 correct), and demo group A went from 4/10
+to 8/10. A single-change ablation (§11.7) confirms that the gain comes from combining both
+changes. This candidate has **not** been evaluated on the test split; every test number in this
+report refers to `configs/final.yaml`.
+
 ## 2. System design
 
 ### 2.1 Pipeline (final configuration)
@@ -526,11 +534,16 @@ implemented or measured.
 | A7: ISA/Rubicon; renewal term | correct contract; gold [18727, 19214] at rank 1 (§9) | not a failure |
 | A8: Tate & Lyle/Igene; minimum commitment | second gold span at rank 1; loose annotation (§9); `demo-check` samples a different question for this contract | annotation-consistency note |
 
-**Demo check.** `demo-check` with `configs/final.yaml`, latest run by the author:
+**Demo check.** `demo-check` with `configs/final.yaml`:
 - **A answerable: 4/10.** The six failures are 5 wrong-passage results and 1 false abstention
   (BicycleTX IP, i.e. E1).
 - **B unanswerable: 4/4**
-- **C input handling: 13/13**
+- **C input handling: 14/14.** An earlier version of this battery reported 13/13, but one of
+  those checks passed vacuously (§11.1).
+
+With `configs/candidate_v4.yaml` the same battery gives **A 8/10, B 4/4, C 14/14**: four of the
+six failures are fixed; Theravance (rank 6) and BicycleTX IP (false abstention) remain (§11.7–11.8).
+The root causes and the run-4 changes are in §11.
 
 ## 9. Limitations, risks and future work
 
@@ -652,6 +665,10 @@ in the author's working tree.
 - **Fingerprints.** The current `configs/final.yaml` fingerprint is `72c8f8c97f8f7ab1`. Removing
   the new key gives `3254f317b4c41e2c`, the tested configuration.
 
+Loop run 4 and `configs/candidate_v4.yaml` (§11) were also produced after the test evaluations,
+on train only. Unlike `require_contract`, they change ranking for benchmark queries, so the test
+results in this report do **not** apply to `candidate_v4`.
+
 ### 10.6 Provenance
 
 | Item | Value |
@@ -669,3 +686,265 @@ and `status`. They are comparable only within one code version.
 Commands are in README.md §Reproduction runbook. A clean spec-v3 run should reproduce
 `artifacts/loop/run3/`. Two historical items can't be reproduced as artifacts: the original v2
 run (§10.3) and the uncommitted per-query outputs (§10.4).
+
+## 11. Post-test, train-only improvement: run 4 (spec v4)
+
+All work in this section used **train data only**. No test evaluation was run:
+`artifacts/test_runs.jsonl` still has 3 records. The gold annotations, split and frozen negative
+set were not changed; the negative set's SHA-256 recorded by run 4 is `77d8b48ab6c6…`, the same as
+before.
+
+### 11.1 Document-filter demo check: a vacuous pass
+
+- **The old check.** It used `sorted(documents)[0]`, the ALCO Stores agency agreement, with
+  "What is the governing law for this contract?".
+- **What happened.** That contract never contains "govern" or "law". Retrieval found one weak
+  passage (signal 0.125 < 0.2739), and the system correctly abstained.
+- **Why it passed anyway.** The check `all(passage in doc)` is true for an empty list.
+- **Diagnosis.** The filter itself was correct; the fixture was meaningless.
+- **Fix** (`src/demo_check.py`):
+  - The check now uses a known answerable train pair: the first train governing-law query and
+    its gold contract.
+  - It requires at least one passage, all from that contract, and an overlap with gold.
+  - A second check confirms that a document filter overrides a different contract named in the
+    query.
+- **New regression tests** (`tests/test_retrieval.py`, `tests/test_end_to_end.py`):
+  - an alias and the full ID give identical, non-empty results;
+  - an invalid ID raises an error;
+  - a contract with no relevant passages returns nothing from other contracts;
+  - a filter overrides the contract named in the query;
+  - real-data check: `PapaJohns` with the governing-law question returns the Delaware clause.
+
+### 11.2 Root causes of the six failing answerable demo queries (train, `configs/final.yaml`)
+
+All six were routed to the **correct contract**, so none is a routing failure.
+
+| Query | First gold rank (of 64) | Root cause | Category |
+|---|---|---|---|
+| `cuad-0f789ebcf3` Bon-Ton, anti-assignment | 15 | in this bankruptcy agency agreement "assign" (of leases) appears everywhere; the gold clause is "may not be assigned … without the prior written consent" | BM25 ranking + vocabulary |
+| `cuad-05251665f3` Sucampo, audit rights | not retrieved | the gold text grants "reasonable access … to books and records" and never says "audit" | lexical vocabulary mismatch |
+| `cuad-3fdb534e55` Tate & Lyle, exceptions to competitive restrictions | 6 | the gold uses "Except as set forth … nothing … shall prevent … engaging"; a near miss | BM25 ranking + vocabulary |
+| `cuad-51b4e44436` Theravance, termination for convenience | 10 | the gold says "sole and absolute discretion … at any time", not "convenience" | lexical vocabulary mismatch |
+| `cuad-5fce387d80` Depomed/King, exclusivity | 8 | after stopwords the query is `exclus` + `agreement`; the generic "agreement" ranks "This Agreement will be construed…" boilerplate first | BM25 ranking (generic template term) |
+| `cuad-7646cba011` BicycleTX, IP ownership | 1 (408/519 gold characters) | retrieval is correct; the full-query signal (0.248) is normalised by preamble + question terms although no single chunk matches both (header vs clause) | score normalisation / abstention threshold |
+
+None of the six was a chunk-boundary failure.
+
+### 11.3 Changes
+
+All are configuration options that default to off, so existing configurations are unchanged.
+Run 4's baseline iteration reproduced `configs/final.yaml`'s train metrics exactly.
+
+| Option | Implementation | Effect |
+|---|---|---|
+| `query.drop_generic_terms` | `src/text.py: GENERIC_LEGAL_TERMS` (contract, agreement, clause, provision, include, hereunder, …) removed from the **ranking** query | ranking only |
+| `query.expand`, `query.expansion_weight` | `src/expansion.py`: 29 concept-keyed rules (e.g. audit → inspect, books, records, access) triggered by the question text; expansion terms weigh 0.5 (typed terms 1.0) in a weighted BM25 (`BM25.scores(weights=…)`) | ranking only |
+| `retrieval.refine` | shrink each passage to its best ≤ `max_chars` sentence window (exact offsets) | passages |
+| `abstention.signal: chunk_split_bm25_norm` | preamble and question matches normalised separately | abstention |
+
+Abstention signals are always computed from the unmodified query, so generic-term removal and
+expansion can't change them. They change abstention only when the ranking query has no matching
+chunk at all, which returns no candidates (this explains the 5 false abstentions in iteration 1).
+
+### 11.4 Experiments
+
+Run 4: `python -m src.cli improve --config configs/final.yaml --spec configs/loop_v4.yaml --run-name run4_v4`.
+- **Spec:** [`configs/loop_v4.yaml`](configs/loop_v4.yaml), with the same acceptance rule as §6.
+- **Log:** `artifacts/loop/run4_v4/iterations.jsonl`.
+- **Data:** train, n = 140 answerable / 28 unanswerable.
+- **Demo:** `demo-check` was run afterwards on each iteration's `config_used.yaml`, for diagnosis
+  only.
+
+| # | Candidate (one change) | P@1 | R@1 | P@5 | R@5 | F1@5 | R@64 | False abst. | Bal. acc. | Demo A / B / C | Decision (reason) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | baseline = `configs/final.yaml` | 0.1745 | 0.4032 | 0.0787 | 0.6174 | 0.1306 | 0.8778 | 3/140 | 0.989 | 4/10 · 4/4 · 14/14 | reference |
+| 1 | `v4_drop_generic_terms` | 0.1757 | 0.4064 | 0.0917 | 0.6648 | 0.1507 | 0.8383 | 5/140 | 0.982 | 7/10 · 4/4 · 14/14 | **accepted** (+0.0202) |
+| 2 | `v4_refine_600` | 0.2753 | 0.1975 | 0.1137 | 0.3396 | 0.1528 | 0.4582 | 5/140 | 0.982 | 5/10 · 4/4 · 13/14 | rejected (recall@5 guardrail) |
+| 3 | `v4_refine_400` | 0.2246 | 0.1519 | 0.1097 | 0.2867 | 0.1367 | 0.3937 | 5/140 | 0.982 | 4/10 · 4/4 · 13/14 | rejected (F1@5 −0.0141) |
+| 4 | `v4_chunk_600` (600/120) | 0.2100 | 0.3303 | 0.1185 | 0.6000 | 0.1819 | 0.7868 | 12/140 | 0.939 | 5/10 · 3/4 · 14/14 | rejected (recall@5 guardrail) |
+| 5 | `v4_query_expansion` (weight 0.5) | 0.2464 | 0.5508 | 0.1049 | 0.8095 | 0.1743 | 0.9517 | 3/140 | 0.989 | 8/10 · 4/4 · 14/14 | **accepted** (+0.0236) |
+| 6 | `v4_expansion_weight_0_3` | 0.2380 | 0.5331 | 0.1035 | 0.7918 | 0.1717 | 0.9517 | 3/140 | 0.989 | 8/10 · 4/4 · 14/14 | rejected (F1@5 −0.0026) |
+| 7 | `v4_split_abstention_signal` | 0.2464 | 0.5508 | 0.1049 | 0.8095 | 0.1743 | 0.9517 | 4/140 | 0.986 | 8/10 · 4/4 · 14/14 | rejected (no F1 change; abstention also worse) |
+
+Correct abstention was 28/28 in every iteration except `v4_chunk_600` (27/28), and offset errors
+were 0 throughout. The accepted configuration is iteration 5, saved as
+[`configs/candidate_v4.yaml`](configs/candidate_v4.yaml) (`name: candidate_v4`,
+`status: candidate`). Its train evaluation with the stored threshold reproduces these numbers
+(`artifacts/eval/candidate_v4_train_20261102-171852/`).
+
+### 11.5 Before vs after (train, n = 140 answerable / 28 unanswerable)
+
+| Metric | `configs/final.yaml` | `configs/candidate_v4.yaml` |
+|---|---:|---:|
+| precision@1 | 0.1745 | 0.2464 |
+| recall@1 | 0.4032 | 0.5508 |
+| precision@5 | 0.0787 | 0.1049 |
+| recall@5 | 0.6174 | 0.8095 |
+| F1@5 | 0.1306 | 0.1743 |
+| recall@64 | 0.8778 | 0.9517 |
+| false abstentions | 3/140 | 3/140 |
+| correct abstentions | 28/28 | 28/28 |
+| balanced abstention accuracy | 0.989 | 0.989 |
+| offset errors | 0 | 0 |
+| demo A / B / C | 4/10 · 4/4 · 14/14 | 8/10 · 4/4 · 14/14 |
+
+- **Still failing in the demo:**
+  - Theravance (termination for convenience): the gold clause moved from rank 10 to 6, still
+    outside the top 5.
+  - BicycleTX IP (E1): still a false abstention; lexical signals can't separate it from its
+    unanswerable counterpart (§11.8).
+- **Regressions:**
+  - Recall@64 fell in iteration 1 (0.878 → 0.838) and recovered with expansion (0.952).
+  - Iteration 1 alone caused 2 extra no-candidate abstentions; expansion removed them.
+
+### 11.6 Caveats on these results
+
+- **In-sample gain.** The expansion rules were written after inspecting train failures,
+  including the gold text of the six demo queries; for example, audit → books/records/access, and
+  convenience → at any time/discretion. The gain is therefore an in-sample (train) estimate.
+- **Gain on queries that didn't inform the rules.** Recomputed from the saved per-query files on
+  the 130 train queries outside the demo set: F1@5 rose from 0.1338 to 0.1733 and recall@5 from
+  0.6281 to 0.8087. That is similar to the full-train gain, so the improvement isn't confined to
+  the inspected queries. It is still train data.
+- **Possible template coupling.** CUAD question templates are shared between train and test, so
+  concept-keyed rules may transfer, but this is **unmeasured**. Evaluating `candidate_v4` on test
+  would be test evaluation #4, after the earlier result on the same split had already been seen.
+  It wasn't done; whether to do it is the author's decision.
+- **Rejected candidates.** Passage refinement and smaller chunks raised precision but cut recall
+  far beyond the guardrail.
+- **Protocol limitation.** The split abstention signal couldn't be accepted under an F1-only
+  primary metric, and on its own merits it was slightly worse (4/140 false abstentions). The
+  primary metric doesn't reward changes that affect only abstention.
+
+**Reproduce:**
+```bash
+python -m src.cli improve --config configs/final.yaml --spec configs/loop_v4.yaml --run-name <new-name>
+python -m src.cli evaluate --config configs/candidate_v4.yaml --no-calibrate
+python -m src.cli demo-check --config configs/candidate_v4.yaml
+# single-change ablation (§11.7); use new --out names
+python -m src.cli evaluate --config configs/experiments/exp1_drop_generic.yaml --out artifacts/eval/<new>_B
+python -m src.cli evaluate --config configs/experiments/exp2_expansion.yaml --out artifacts/eval/<new>_C
+python -m src.cli evaluate --config configs/experiments/exp3_drop_generic_expansion.yaml --out artifacts/eval/<new>_D
+```
+
+### 11.7 Single-change ablation (train)
+
+To separate the two accepted changes, each was evaluated **alone** against the reference under
+identical settings: train split, n = 140 answerable / 28 unanswerable, abstention threshold
+calibrated on train per configuration, which selected 0.2739 in all four cases.
+- Configs: `configs/experiments/`
+- Outputs: `artifacts/eval/exp_{A,B,C,D}_train/`
+- Experiment 0 re-ran `candidate_v4` and reproduced iteration 5 of run 4 exactly
+  (`artifacts/eval/exp0_reproduce_candidate_v4_train/`), and again after the later code changes
+  (`exp0b_candidate_v4_after_code_change/`).
+
+| Config | k | 1 | 2 | 4 | 5 | 8 | 16 |
+|---|---|---|---|---|---|---|---|
+| A: `configs/final.yaml` | P | 0.1745 | 0.1246 | 0.0881 | 0.0787 | 0.0614 | 0.0457 |
+| | R | 0.4032 | 0.4740 | 0.5729 | 0.6174 | 0.6736 | 0.7806 |
+| | F1 | 0.2228 | 0.1818 | 0.1416 | 0.1306 | 0.1073 | 0.0835 |
+| B: generic-term removal only | P | 0.1757 | 0.1406 | 0.1035 | 0.0917 | 0.0709 | 0.0561 |
+| | R | 0.4064 | 0.5192 | 0.6482 | 0.6648 | 0.7155 | 0.8043 |
+| | F1 | 0.2242 | 0.2049 | 0.1662 | 0.1507 | 0.1224 | 0.0999 |
+| C: expansion only (weight 0.5) | P | 0.2266 | 0.1641 | 0.1093 | 0.0941 | 0.0701 | 0.0442 |
+| | R | 0.5024 | 0.5880 | 0.7220 | 0.7471 | 0.8219 | 0.8973 |
+| | F1 | 0.2836 | 0.2358 | 0.1769 | 0.1567 | 0.1235 | 0.0820 |
+| **D: both (= `candidate_v4`)** | P | 0.2464 | 0.1827 | 0.1210 | 0.1049 | 0.0757 | 0.0476 |
+| | R | 0.5508 | 0.6524 | 0.7868 | 0.8095 | 0.8651 | 0.9186 |
+| | F1 | 0.3108 | 0.2636 | 0.1958 | 0.1743 | 0.1332 | 0.0877 |
+
+| Config | False abstentions | Correct abstentions | Failure to abstain | Bal. acc. | Offset errors |
+|---|---:|---:|---:|---:|---:|
+| A | 3/140 | 28/28 | 0.000 | 0.989 | 0 |
+| B | 5/140 | 28/28 | 0.000 | 0.982 | 0 |
+| C | 3/140 | 28/28 | 0.000 | 0.989 | 0 |
+| D | 3/140 | 28/28 | 0.000 | 0.989 | 0 |
+
+**Reading the ablation.**
+- **D wins.** It is best at every k, except that B has a higher P@16 (0.0561 vs 0.0476).
+- **C beats B.** Expansion alone outperforms generic-term removal alone.
+- **B's extra false abstentions.** With generic words removed, some questions keep no word that
+  matches any chunk; expansion removes these cases in D.
+
+**Per-failure effect.** Rank of the first gold-overlapping passage for each of the six audited
+train queries; "abst." means the query is abstained:
+
+| Query | A | B | C | D |
+|---|---|---|---|---|
+| Bon-Ton, anti-assignment | 15 | **1** | 8 | **1** |
+| Sucampo, audit rights | not in top 64 | not in top 64 | **1** | **1** |
+| Tate & Lyle, exceptions to competitive restrictions | 6 | **4** | **1** | **1** |
+| Depomed/King, exclusivity | 8 | **1** | **4** | **1** |
+| Theravance, termination for convenience | 10 | 10 | 7 | 6 |
+| BicycleTX, IP ownership | 1 (abst.) | 1 (abst.) | 1 (abst.) | 1 (abst.) |
+
+- **Sucampo** is fixed only by expansion; its gold text uses books, records and access instead of
+  "audit".
+- **Bon-Ton and Depomed** are fixed mainly by removing generic template terms.
+- **Theravance (remaining miss).** The gold chunk is in the candidate pool at rank 6, but the top
+  competitor covers more ranking terms (6 vs 5), so a term-coverage reranker wouldn't promote it.
+  The source text is also damaged inside the gold span (`"l ieu of  not ice"`), so "notice" can't
+  match. No reranker was implemented.
+
+### 11.8 BicycleTX false abstention (E1) and experiment 4
+
+**Rule tested.** Experiment 4 tested a two-part rule, `abstention.signal: identity_and_question`
+(`configs/experiments/exp4_identity_question_abstention.yaml`). It abstains if contract identity
+is not confirmed (`preamble_bm25_norm` < `doc_threshold`) **or** the question-only answerability
+score (`chunk_bm25_norm`) is below `threshold`, with both thresholds jointly calibrated on train.
+
+**Result:**
+- false abstentions rose to **17/140** (from 3);
+- one negative was answered (27/28 correct abstentions);
+- balanced accuracy fell to **0.921** (from 0.989).
+
+It is **rejected** (`artifacts/eval/exp_E4_train/`).
+
+**Root cause.** The answerable IP question and its unanswerable counterpart `unans-025` (the same
+BicycleTX contract, asking for Nigel Crockett's passport number and date of birth) can't be
+separated lexically:
+
+| Query | full-query signal | question-only signal | identity signal |
+|---|---:|---:|---:|
+| E1 IP question (answerable) | 0.2485 | 0.2033 | 0.3782 |
+| `unans-025` passport question (unanswerable) | 0.2708 | 0.3131 | 0.3782 |
+
+The unanswerable query scores **higher** on both answer signals, so any threshold low enough to
+answer E1 also answers `unans-025`. The calibrated threshold (0.2739) keeps the better overall
+train trade-off (§6). This is a limit of lexical evidence, not a calibration bug. Fixing it would
+need a model of answer type or meaning; nothing like that was tested.
+
+The case is recorded as `tests/test_end_to_end.py::test_real_bicycletx_ip_is_answered`, marked
+`xfail(strict=True)`, so a future fix shows up as an XPASS failure instead of passing silently.
+
+### 11.9 Further rejected experiment and acceptance log
+
+**Experiment 5.** `query.expansion_skip_function_words: true` (on top of D) stops function words
+such as "any", from the phrase "at any time", from being added as expansion terms. F1@5 was
+unchanged at 0.1743 (R@16 0.9186 → 0.9238), below the +0.002 acceptance threshold, so it was
+**rejected**. The option stays available, default off (`artifacts/eval/exp_E5_train/`).
+
+| Experiment | Change vs reference | Train F1@5 | Train R@5 | False abst. | Decision |
+|---|---|---:|---:|---:|---|
+| A | none (`configs/final.yaml`) | 0.1306 | 0.6174 | 3/140 | reference |
+| B | generic-term removal | 0.1507 | 0.6648 | 5/140 | superseded by D |
+| C | concept expansion | 0.1567 | 0.7471 | 3/140 | superseded by D |
+| **D** | **B + C (`candidate_v4`)** | **0.1743** | **0.8095** | **3/140** | **accepted** |
+| 4 | `identity_and_question` abstention (on A) | 0.1306 | 0.6174 | 17/140 | rejected |
+| 5 | D + skip expansion function words | 0.1743 | 0.8095 | 3/140 | rejected (no gain) |
+
+**Tests.** `python -m pytest -q` gives **101 passed, 1 xfailed**; the expected failure is the
+BicycleTX case above. Regression tests cover:
+- the recorded expansion terms and weights;
+- the user's question is never rewritten;
+- routing is unaffected by query refinement;
+- generic-term removal never drops negation or exception words;
+- the identity-and-question rule;
+- real-data checks that the four fixed train cases stay in the top 5 with exact offsets.
+
+**Remaining limitations.**
+- **Train-only gain.** All gains here are train-only (§11.6).
+- **Two unresolved failures.** Theravance and BicycleTX remain.
+- **Negation.** The global stopword list (unchanged since the baseline) removes "no", "not" and
+  "nor" from search text.
+- **Untested alternatives.** Dense/hybrid retrieval and reranking remain unevaluated.

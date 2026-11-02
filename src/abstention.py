@@ -8,6 +8,15 @@ Signals (none of them is a probability):
   chunk_full_bm25_norm : same as chunk_bm25_norm but always computed with the FULL query
                     (contract preamble + question) over the routed chunks, even when ranking
                     uses only the question part; decouples abstention from ranking.
+  chunk_split_bm25_norm : (best chunk score of the contract preamble + best chunk score of the
+                    question) / (upper bound of preamble + upper bound of question), over the
+                    routed contract's chunks. Unlike chunk_full_bm25_norm it does not require one
+                    chunk to match both parts (the preamble matches the header, the question the
+                    clause). Equals chunk_full_bm25_norm when the query has no preamble.
+  preamble_bm25_norm : best chunk score of the contract preamble / its upper bound (identity).
+  identity_and_question : two-part rule (needs split mode + routing): abstain iff
+                    preamble_bm25_norm < doc_threshold (contract identity not confirmed) OR
+                    chunk_bm25_norm < threshold (question-only answerability). Jointly calibrated.
   doc_bm25_norm   : same normalisation at document-routing level
   dense_max_cos   : best cosine similarity (dense / hybrid only), in [-1, 1]
   doc_and_chunk   : two-part rule (needs doc routing): abstain iff
@@ -39,7 +48,7 @@ class Decision:
 
 def decide(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Decision:
     name, thr = abst_cfg["signal"], float(abst_cfg["threshold"])
-    if name == "doc_and_chunk":
+    if name in DUAL_SIGNALS:
         return _decide_dual(n_candidates, signals, abst_cfg)
     value = signals.get(name)
     if n_candidates == 0:
@@ -53,16 +62,23 @@ def decide(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Deci
     return Decision(False, "answered", name, value, thr)
 
 
+# two-part rules: name -> (identity/document signal, answerability signal)
+DUAL_SIGNALS = {"doc_and_chunk": ("doc_bm25_norm", "chunk_bm25_norm"),
+                "identity_and_question": ("preamble_bm25_norm", "chunk_bm25_norm")}
+
+
 def _decide_dual(n_candidates: int, signals: dict[str, float], abst_cfg: dict) -> Decision:
+    name = abst_cfg["signal"]
+    id_key, ans_key = DUAL_SIGNALS[name]
     thr, dthr = float(abst_cfg["threshold"]), float(abst_cfg.get("doc_threshold", 0.0))
-    cv, dv = signals.get("chunk_bm25_norm"), signals.get("doc_bm25_norm")
-    mk = lambda ab, why: Decision(ab, why, "doc_and_chunk", cv, thr, dv, dthr)  # noqa: E731
+    cv, dv = signals.get(ans_key), signals.get(id_key)
+    mk = lambda ab, why: Decision(ab, why, name, cv, thr, dv, dthr)  # noqa: E731
     if n_candidates == 0:
         return mk(True, "no_candidates")
     if not abst_cfg.get("enabled", True):
         return mk(False, "answered")
     if cv is None or dv is None:
-        raise KeyError("doc_and_chunk needs doc_bm25_norm and chunk_bm25_norm (enable doc routing)")
+        raise KeyError(f"{name} needs {id_key} and {ans_key} (enable doc routing / split mode)")
     if dv < dthr:
         return mk(True, "below_doc_threshold")
     if cv < thr:

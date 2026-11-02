@@ -1,0 +1,16 @@
+{
+  "config": "iter05_v4_query_expansion",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 16,
+    "correct_abstention": 28,
+    "false_abstention": 3,
+    "irrelevant_extra": 44,
+    "low_rank": 16,
+    "ok": 37,
+    "partial_span": 10,
+    "wrong_section": 14
+  },
+  "dominant_answerable_failure": "irrelevant_extra",
+  "n_failures": 103
+}

@@ -1,0 +1,134 @@
+[loop] baseline: overlap_up  (train answerable=140, train unanswerable=28)
+split=train  config=overlap_up  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1745  0.4032  0.2228 |   0.1715   0.3976
+   2  0.1246  0.4740  0.1818 |   0.1231   0.4684
+   4  0.0881  0.5729  0.1416 |   0.0873   0.5673
+   5  0.0787  0.6174  0.1306 |   0.0780   0.6118
+   8  0.0614  0.6736  0.1073 |   0.0610   0.6680
+  16  0.0457  0.7806  0.0835 |   0.0454   0.7734
+  32  0.0379  0.8438  0.0700 |   0.0377   0.8367
+  64  0.0358  0.8778  0.0663 |   0.0353   0.8635
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+
+[loop] iteration 1: v4_drop_generic_terms (rule: dominant failure 'wrong_section' matches tags)
+  hypothesis: CUAD question templates contain words (contract, agreement, clause, include) that match almost every chunk; e.g. for "Does this contract include an exclusivity agreement?" the term "agreement" pulls up governing-law boilerplate. Dropping them from the RANKING query should rank the clause higher. Abstention signals are unchanged.
+  changes: {'query.drop_generic_terms': True}
+split=train  config=v4_drop_generic_terms  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.1757  0.4064  0.2242 |   0.1727   0.4008
+   2  0.1406  0.5192  0.2049 |   0.1391   0.5135
+   4  0.1035  0.6482  0.1662 |   0.1027   0.6425
+   5  0.0917  0.6648  0.1507 |   0.0910   0.6592
+   8  0.0709  0.7155  0.1224 |   0.0705   0.7099
+  16  0.0561  0.8043  0.0999 |   0.0558   0.7972
+  32  0.0497  0.8180  0.0887 |   0.0493   0.8089
+  64  0.0482  0.8383  0.0859 |   0.0478   0.8292
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.036 (5/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.982
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0202; all guardrails passed
+
+[loop] iteration 2: v4_refine_600 (rule: dominant failure 'irrelevant_extra' matches tags)
+  hypothesis: Returned passages (~785 chars) are much longer than gold spans (median 317). Shrinking each passage to its best <=600-char sentence window should raise precision while the ranking (and so the chunk that contains the clause) is unchanged.
+  changes: {'retrieval.refine.enabled': True, 'retrieval.refine.max_chars': 600}
+split=train  config=v4_refine_600  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2753  0.1975  0.2120 |   0.2753   0.1975
+   2  0.1948  0.2429  0.1907 |   0.1948   0.2429
+   4  0.1309  0.3285  0.1661 |   0.1309   0.3285
+   5  0.1137  0.3396  0.1528 |   0.1137   0.3396
+   8  0.0817  0.3777  0.1207 |   0.0817   0.3777
+  16  0.0628  0.4333  0.0997 |   0.0627   0.4317
+  32  0.0544  0.4396  0.0871 |   0.0540   0.4361
+  64  0.0525  0.4582  0.0839 |   0.0523   0.4547
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.036 (5/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.982
+[loop] REJECTED: guardrail(s) failed: retrieval.recall@5
+
+[loop] iteration 3: v4_refine_400 (rule: dominant failure 'irrelevant_extra' matches tags)
+  hypothesis: A tighter 400-char window may raise precision further; tests the recall cost.
+  changes: {'retrieval.refine.enabled': True, 'retrieval.refine.max_chars': 400}
+split=train  config=v4_refine_400  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2246  0.1519  0.1666 |   0.2246   0.1519
+   2  0.1757  0.1929  0.1593 |   0.1757   0.1929
+   4  0.1239  0.2745  0.1456 |   0.1239   0.2745
+   5  0.1097  0.2867  0.1367 |   0.1097   0.2867
+   8  0.0798  0.3163  0.1085 |   0.0798   0.3163
+  16  0.0631  0.3687  0.0916 |   0.0630   0.3671
+  32  0.0557  0.3739  0.0812 |   0.0552   0.3704
+  64  0.0540  0.3937  0.0784 |   0.0537   0.3903
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.036 (5/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.982
+[loop] REJECTED: retrieval.f1@5 delta -0.0141 < min_improvement 0.002
+
+[loop] iteration 4: v4_chunk_600 (rule: dominant failure 'irrelevant_extra' matches tags)
+  hypothesis: Smaller chunks (600/120) may localise clauses better now that ranking uses the question only; previously rejected sizes were tested with an older ranking pipeline.
+  changes: {'chunking.max_chars': 600, 'chunking.overlap_chars': 120}
+split=train  config=v4_chunk_600  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2100  0.3303  0.2332 |   0.1965   0.3039
+   2  0.1703  0.4541  0.2275 |   0.1559   0.4177
+   4  0.1242  0.5499  0.1864 |   0.1144   0.5112
+   5  0.1185  0.6000  0.1819 |   0.1096   0.5572
+   8  0.0933  0.6392  0.1511 |   0.0857   0.5898
+  16  0.0755  0.7189  0.1268 |   0.0697   0.6624
+  32  0.0676  0.7564  0.1143 |   0.0626   0.6998
+  64  0.0661  0.7868  0.1118 |   0.0612   0.7302
+abstention signal=chunk_full_bm25_norm threshold=0.2514 (calibrated on train)
+false_abstention_rate=0.086 (12/140)  correct_abstention_rate=0.964 (27/28)  failure_to_abstain_rate=0.036  balanced_acc=0.939
+[loop] REJECTED: guardrail(s) failed: retrieval.recall@5
+
+[loop] iteration 5: v4_query_expansion (queue: next predeclared candidate)
+  hypothesis: Gold clauses often use drafting vocabulary absent from the question ("audit rights" -> books, records, inspect; "termination for convenience" -> at any time, without cause). Adding a controlled, concept-keyed vocabulary at half weight should recover these.
+  changes: {'query.expand': True, 'query.expansion_weight': 0.5}
+split=train  config=v4_query_expansion  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2464  0.5508  0.3108 |   0.2435   0.5452
+   2  0.1827  0.6524  0.2636 |   0.1812   0.6468
+   4  0.1210  0.7868  0.1958 |   0.1202   0.7812
+   5  0.1049  0.8095  0.1743 |   0.1043   0.8039
+   8  0.0757  0.8651  0.1332 |   0.0751   0.8579
+  16  0.0476  0.9186  0.0877 |   0.0473   0.9115
+  32  0.0358  0.9346  0.0667 |   0.0355   0.9255
+  64  0.0323  0.9517  0.0602 |   0.0321   0.9426
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] ACCEPTED: retrieval.f1@5 improved by +0.0236; all guardrails passed
+
+[loop] iteration 6: v4_expansion_weight_0_3 (queue: next predeclared candidate)
+  hypothesis: A lower expansion weight may keep the vocabulary benefit with less topic drift.
+  changes: {'query.expansion_weight': 0.3}
+split=train  config=v4_expansion_weight_0_3  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2380  0.5331  0.3011 |   0.2351   0.5275
+   2  0.1742  0.6285  0.2518 |   0.1727   0.6229
+   4  0.1190  0.7743  0.1931 |   0.1182   0.7687
+   5  0.1035  0.7918  0.1717 |   0.1028   0.7862
+   8  0.0737  0.8511  0.1298 |   0.0732   0.8440
+  16  0.0477  0.9106  0.0878 |   0.0474   0.9035
+  32  0.0358  0.9346  0.0667 |   0.0355   0.9255
+  64  0.0323  0.9517  0.0602 |   0.0321   0.9426
+abstention signal=chunk_full_bm25_norm threshold=0.2739 (calibrated on train)
+false_abstention_rate=0.021 (3/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.989
+[loop] REJECTED: retrieval.f1@5 delta -0.0026 < min_improvement 0.002
+
+[loop] iteration 7: v4_split_abstention_signal (queue: next predeclared candidate)
+  hypothesis: The full-query signal requires ONE chunk to match both preamble (header) and question (clause); long preambles therefore depress it (BicycleTX IP false abstention). Normalising preamble and question matches separately should reduce false abstentions; may admit some real-contract negatives, checked by the balanced-accuracy guardrail.
+  changes: {'abstention.signal': 'chunk_split_bm25_norm'}
+split=train  config=v4_split_abstention_signal  answerable n=140  unanswerable n=28  offset_errors=0
+   k       P       R      F1 |  P(abst)  R(abst)
+   1  0.2464  0.5508  0.3108 |   0.2416   0.5309
+   2  0.1827  0.6524  0.2636 |   0.1802   0.6325
+   4  0.1210  0.7868  0.1958 |   0.1196   0.7669
+   5  0.1049  0.8095  0.1743 |   0.1038   0.7896
+   8  0.0757  0.8651  0.1332 |   0.0749   0.8436
+  16  0.0476  0.9186  0.0877 |   0.0471   0.8972
+  32  0.0358  0.9346  0.0667 |   0.0353   0.9112
+  64  0.0323  0.9517  0.0602 |   0.0319   0.9283
+abstention signal=chunk_split_bm25_norm threshold=0.3564 (calibrated on train)
+false_abstention_rate=0.029 (4/140)  correct_abstention_rate=1.000 (28/28)  failure_to_abstain_rate=0.000  balanced_acc=0.986
+[loop] REJECTED: retrieval.f1@5 delta +0.0000 < min_improvement 0.002
+
+[loop] done. evaluated=7 accepted=v4_query_expansion -> /home/afrozdebian/coding/JioStar/CIA/artifacts/loop/run4_v4/accepted_config.yaml

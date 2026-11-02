@@ -1,0 +1,17 @@
+{
+  "config": "iter04_v4_chunk_600",
+  "k": 5,
+  "counts": {
+    "chunk_boundary": 27,
+    "correct_abstention": 27,
+    "failure_to_abstain": 1,
+    "false_abstention": 12,
+    "irrelevant_extra": 15,
+    "low_rank": 14,
+    "ok": 24,
+    "partial_span": 16,
+    "wrong_section": 32
+  },
+  "dominant_answerable_failure": "wrong_section",
+  "n_failures": 117
+}

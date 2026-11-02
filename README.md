@@ -24,6 +24,12 @@ CIA is a retrieval aid. It doesn't interpret contracts and doesn't give legal ad
 - **Offset-preserving chunking:** chunks are exact slices of the unmodified source text, and
   every returned passage is checked against the source ([`src/chunking.py`](src/chunking.py),
   [`src/pipeline.py`](src/pipeline.py)).
+- **Ranking-query processing** (optional, per config): the ranking query can drop generic
+  template words ("contract", "agreement", "clause", "include") and add a controlled,
+  concept-keyed clause vocabulary at reduced weight ([`src/expansion.py`](src/expansion.py)).
+  Abstention signals always use the unmodified query. The ranking terms and their weights are
+  recorded in every search result (`ranking_terms`) and in per-query evaluation output
+  (`expansion_terms`); the CLI prints the expansion terms it used.
 - **Train-calibrated abstention:** a threshold over a normalised BM25 evidence score, calibrated
   on training data only. A question that names no contract can be set to abstain with
   suggestions ([`src/abstention.py`](src/abstention.py)).
@@ -189,8 +195,11 @@ query ─► parse "Consider <preamble>; <question>"
 | File | Role |
 |---|---|
 | [`configs/baseline.yaml`](configs/baseline.yaml) | initial BM25 configuration: full-query ranking over all contracts; threshold stored after train calibration |
-| [`configs/final.yaml`](configs/final.yaml) | configuration selected by the train-only loop and promoted from `artifacts/loop/run3/accepted_config.yaml`, plus `query.require_contract: true` (see REPORT.md) |
-| [`configs/loop.yaml`](configs/loop.yaml) | loop protocol (primary metric, guardrails, tolerances) and candidate list, with a change log |
+| [`configs/final.yaml`](configs/final.yaml) | configuration selected by the train-only loop and promoted from `artifacts/loop/run3/accepted_config.yaml`, plus `query.require_contract: true`; this is the configuration evaluated on the test split (see REPORT.md) |
+| [`configs/candidate_v4.yaml`](configs/candidate_v4.yaml) | `final.yaml` + generic-term removal + query expansion, accepted by the train-only loop run 4; **not evaluated on the test split** (REPORT.md §11) |
+| [`configs/loop.yaml`](configs/loop.yaml) | loop protocol (primary metric, guardrails, tolerances) and candidate list (runs 1–3), with a change log |
+| [`configs/loop_v4.yaml`](configs/loop_v4.yaml) | same protocol; candidates for run 4, starting from `final.yaml` |
+| [`configs/experiments/`](configs/experiments/) | single-change ablation configs (B, C, D, exp 4, exp 5) used in REPORT.md §11.7–11.9 |
 
 All keys and their defaults are in [`src/config.py`](src/config.py) (`DEFAULTS`). Read the YAML
 files for current values.
@@ -213,6 +222,13 @@ python -m src.cli improve --config configs/baseline.yaml --spec configs/loop.yam
 #   promote: copy accepted_config.yaml to a config file; set status: final; add
 #   query.require_contract: true to match configs/final.yaml
 python -m src.cli evaluate --config configs/final.yaml --no-calibrate   # final, train split
+python -m src.cli improve --config configs/final.yaml --spec configs/loop_v4.yaml --run-name <new-name>
+#   run 4 (spec v4) starts from final.yaml; its accepted config is configs/candidate_v4.yaml
+python -m src.cli evaluate --config configs/candidate_v4.yaml --no-calibrate
+# ablation (train; threshold calibrated per config; use new --out names):
+python -m src.cli evaluate --config configs/experiments/exp1_drop_generic.yaml --out artifacts/eval/<new>_B
+python -m src.cli evaluate --config configs/experiments/exp2_expansion.yaml --out artifacts/eval/<new>_C
+python -m src.cli evaluate --config configs/experiments/exp3_drop_generic_expansion.yaml --out artifacts/eval/<new>_D
 python -m src.cli error-analysis --config configs/final.yaml            # train split
 python -m src.cli demo-check --config configs/final.yaml
 streamlit run app.py
@@ -251,7 +267,7 @@ the threshold on test.
 ## Testing
 
 ```bash
-python -m pytest -q          # most recent run reported by the author: 83 passed
+python -m pytest -q          # most recent run: 101 passed, 1 xfailed
 ```
 
 | File | Covers |
@@ -259,20 +275,30 @@ python -m pytest -q          # most recent run reported by the author: 83 passed
 | `tests/test_metrics.py` | exact/partial coverage, extra text, wrong document, multiple gold spans, overlapping passages, empty retrieval, k cutoffs, aggregation, abstention-metric denominators |
 | `tests/test_data.py` | `mini()` determinism, split, gold-span validation, negative-set contract, idempotent data preparation |
 | `tests/test_chunking.py` | offset invariants, overlap behaviour, boundary preference |
-| `tests/test_retrieval.py` | BM25 against a hand-computed score, ranking/ties, top-k, routing, overlap policies, contract identity, document filter, dense/hybrid paths with a stub encoder |
+| `tests/test_retrieval.py` | BM25 against a hand-computed score, ranking/ties, top-k, routing, overlap policies, contract identity, document filter (must return evidence: alias, full ID, invalid, no relevant passages, override of a named contract), generic-term removal, query expansion, passage refinement, abstention signals, dense/hybrid paths with a stub encoder |
 | `tests/test_abstention.py` | threshold equality, calibration, single- and two-threshold rules, false abstention and failure to abstain |
 | `tests/test_improvement_loop.py` | one-command run, train-only data, logging, rejected candidates never overwrite the accepted config, frozen-set integrity, reproducibility |
 | `tests/test_end_to_end.py` | CLI, headless Streamlit (`AppTest`), invalid config, evaluation outputs, test-split refusal, `show-span`, `demo-check` |
 
+The one `xfailed` test is intentional: `test_real_bicycletx_ip_is_answered` is marked
+`xfail(strict=True)` to record a known false abstention (REPORT.md §11.8). It reports `x` while
+the limitation exists, and turns into a failure (XPASS) if a change ever fixes it, so the marker
+must then be removed deliberately.
+
 Most tests use small synthetic fixtures (`tests/conftest.py`). Tests marked `real_data` need the
 prepared benchmark under `data/raw/` and are skipped otherwise.
 
-`demo-check` is a separate manual battery. With `configs/final.yaml` the author's most recent
-run gave:
-- **A answerable: 4/10.** The six failures are 5 wrong-passage results and 1 false abstention;
-  these are genuine retrieval errors.
-- **B unanswerable: 4/4**
-- **C input handling: 13/13**
+`demo-check` is a separate manual battery; its results are diagnostic, not acceptance criteria.
+
+| Config | A answerable | B unanswerable | C input handling |
+|---|---|---|---|
+| `configs/final.yaml` | 4/10 | 4/4 | 14/14 |
+| `configs/candidate_v4.yaml` | **8/10** | 4/4 | 14/14 |
+
+With `candidate_v4`, the two remaining group-A failures are genuine errors: one ranking miss
+(Theravance; the gold passage is at rank 6) and one false abstention (BicycleTX IP). Failures in
+group A are genuine retrieval errors. Group C has 14 checks since its
+document-filter check was corrected (REPORT.md §11).
 
 ## Assumptions and limitations
 
@@ -282,7 +308,8 @@ run gave:
   means no correct evidence can be returned.
 - **Low precision.** Returned passages are much longer than typical gold spans, so most of the
   returned text isn't the answer.
-- **Lexical matching.** Paraphrased clauses with different vocabulary can be missed.
+- **Lexical matching.** Paraphrased clauses with different vocabulary can be missed. The query
+  expansion in `candidate_v4` covers a fixed set of clause concepts only.
 - **Dense/hybrid retrieval** is implemented but not evaluated.
 - **The unanswerable set** is hand-authored (35 queries), and only 7 fall in the test split, so
   evidence about abstention is limited.

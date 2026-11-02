@@ -32,14 +32,16 @@ class SearchResult:
     doc_threshold: float | None = None
     document_filter: str | None = None
     contract_candidates: list[str] = field(default_factory=list)
+    ranking_terms: dict = field(default_factory=dict)  # debug: ranking-query term -> weight
 
     def signal_text(self) -> str:
         """Human-readable abstention evidence (shared by CLI and web app)."""
         f = lambda v: "n/a" if v is None else f"{v:.4f}"  # noqa: E731
-        dual = self.signal == "doc_and_chunk"
-        s = f"{'chunk_bm25_norm' if dual else self.signal}={f(self.signal_value)} (threshold {self.threshold:.4f})"
+        from .abstention import DUAL_SIGNALS
+        dual = DUAL_SIGNALS.get(self.signal)
+        s = f"{dual[1] if dual else self.signal}={f(self.signal_value)} (threshold {self.threshold:.4f})"
         if dual:
-            s = f"doc_bm25_norm={f(self.doc_signal_value)} (threshold {f(self.doc_threshold)}), " + s
+            s = f"{dual[0]}={f(self.doc_signal_value)} (threshold {f(self.doc_threshold)}), " + s
         return s
 
     def to_dict(self) -> dict:
@@ -106,4 +108,4 @@ class Pipeline:
                             signal_value=d.value, threshold=d.threshold, passages=passages,
                             config_name=self.cfg.get("name", ""), doc_signal_value=d.doc_value,
                             doc_threshold=d.doc_threshold, document_filter=doc_id,
-                            contract_candidates=out.contract_candidates)
+                            contract_candidates=out.contract_candidates, ranking_terms=out.ranking_terms)
