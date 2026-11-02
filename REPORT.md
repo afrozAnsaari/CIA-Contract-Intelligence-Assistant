@@ -621,19 +621,43 @@ listed remediation was implemented or measured** unless noted.
 
 ## 14. Reproducibility
 
+Run the following commands from the repository root.
+
 ```bash
+# Install dependencies and activate the environment
 uv sync && source .venv/bin/activate
-python -m src.cli prepare-data --source /path/to/legalbench-rag      # inputs: cuad.json + corpus/cuad
-python -m src.cli validate-data                                      # expect VALIDATION OK
+
+# Prepare benchmark data (requires cuad.json and corpus/cuad)
+python -m src.cli prepare-data --source /path/to/legalbench-rag
+
+# Validate prepared data
+python -m src.cli validate-data  # expect VALIDATION OK
+
+# Run automated tests
 python -m pytest -q
-python -m src.cli evaluate --config configs/baseline.yaml            # baseline, train (re-calibrates)
-python -m src.cli improve --config configs/baseline.yaml --spec configs/loop.yaml --run-name <new-name>
-python -m src.cli evaluate --config configs/final.yaml --no-calibrate                 # final, train
-python -m src.cli evaluate --config configs/final.yaml --split test --final-test      # held-out test
-python -m src.cli evaluate --config configs/baseline.yaml --split test --final-test   # baseline test
+
+# Evaluate baseline on the training split (re-calibrates abstention threshold)
+python -m src.cli evaluate --config configs/baseline.yaml
+
+# Run the train-only improvement loop
+python -m src.cli improve --config configs/baseline.yaml --spec configs/loop.yaml --run-name reproduction_run_01
+
+# Evaluate final configuration on the training split
+python -m src.cli evaluate --config configs/final.yaml --no-calibrate
+
+# Evaluate final configuration on the held-out test split
+python -m src.cli evaluate --config configs/final.yaml --split test --final-test
+
+# Evaluate baseline configuration on the held-out test split
+python -m src.cli evaluate --config configs/baseline.yaml --split test --final-test
+
+# Generate error analysis for the final configuration
 python -m src.cli error-analysis --config configs/final.yaml
 ```
 
+Use a unique run name for each reproduction run to avoid overwriting or confusing existing experiment artifacts.
+
+**Evaluation note:** The test-set commands trigger held-out evaluations. Test results must not be used for configuration selection, threshold calibration, or improvement-loop decisions. The commands above describe a fresh reproduction workflow; they do not imply that the original experiments followed this exact sequence. Preserve the submitted historical experiment artifacts when reproducing the results.
 **Inputs.**
 - Python ≥ 3.13; dependencies pinned in `uv.lock`.
 - The LegalBench-RAG `benchmarks/cuad.json` and `corpus/cuad/`.
