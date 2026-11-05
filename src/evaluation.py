@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import json
+import resource
+import time
 from pathlib import Path
 
 from .abstention import DUAL_SIGNALS, calibrate, calibrate_dual, decide
@@ -21,15 +23,47 @@ def run_queries(pipeline: Pipeline, queries: list[Query]) -> list[dict]:
     """Inference only: the query text is the only input; gold is attached afterwards."""
     out = []
     for q in queries:
+        t0 = time.perf_counter()
         r = pipeline.retrieve(q.query)
-        out.append({
+        seconds = time.perf_counter() - t0
+        rec = {
             "qid": q.qid, "query": q.query, "split": q.split, "answerable": q.answerable,
             "category": q.category, "signals": r.signals, "routed_documents": r.routed_documents,
             "unresolved_contract": r.unresolved_contract,
             "expansion_terms": {t: w for t, w in r.ranking_terms.items() if w < 1.0},
             "passages": [(p.document_id, p.start_offset, p.end_offset, p.score) for p in r.passages],
-        })
+            "query_seconds": seconds,
+        }
+        if r.timings:  # reranking ran: keep per-passage second-stage evidence next to the BM25 score
+            rec["timings"] = r.timings
+            rec["rerank"] = [(p.rerank_score, p.bm25_rank) for p in r.passages]
+        out.append(rec)
     return out
+
+
+def operational_metrics(raw: list[dict], pipeline: Pipeline, index_seconds: float | None) -> dict:
+    """Wall-clock and memory measurements for one evaluation process (not quality metrics)."""
+    n = len(raw)
+    qs = [r.get("query_seconds", 0.0) for r in raw]
+    rr = [r["timings"]["rerank_seconds"] for r in raw if r.get("timings")]
+    scorer = getattr(getattr(pipeline.index, "reranker", None), "scorer", None)
+    # Linux reports ru_maxrss in KiB: peak resident memory of the whole process so far.
+    peak_mib = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    return {
+        "n_queries": n,
+        "index_build_seconds": index_seconds,
+        "mean_query_seconds": sum(qs) / n if n else None,
+        "total_query_seconds": sum(qs),
+        "n_reranked_queries": len(rr),
+        "mean_rerank_seconds": sum(rr) / len(rr) if rr else None,
+        "mean_candidates_reranked": (sum(r["timings"]["n_reranked"] for r in raw if r.get("timings")) / len(rr)
+                                     if rr else None),
+        "reranker_model_load_seconds": getattr(scorer, "load_seconds", None),
+        "reranker_n_parameters": getattr(scorer, "n_parameters", None),
+        "peak_rss_mib": round(peak_mib, 1),
+        "note": "first reranked query includes lazy model loading in its query_seconds; "
+                "mean_rerank_seconds excludes loading",
+    }
 
 
 def calibrate_threshold(raw_ans: list[dict], raw_neg: list[dict], signal: str) -> dict:
@@ -70,6 +104,9 @@ def score(raw_ans: list[dict], raw_neg: list[dict], queries: dict[str, Query], d
                "retrieved": [{"rank": i + 1, "document_id": doc, "start_offset": s, "end_offset": e,
                               "score": sc, "preview": documents[doc][s:e][:PREVIEW_CHARS]}
                              for i, (doc, s, e, sc) in enumerate(r["passages"][:STORE_TOP])]}
+        if r.get("rerank"):
+            for item, (rs, br) in zip(rec["retrieved"], r["rerank"]):
+                item["rerank_score"], item["bm25_rank"] = rs, br
         if r["answerable"]:
             q = queries[r["qid"]]
             gold = [(g.document_id, g.start, g.end) for g in q.gold]
@@ -101,9 +138,14 @@ def evaluate(cfg: dict, dataset: Dataset, split: str, *, calibrate_on_train: boo
         raise PermissionError("Refusing to evaluate the held-out TEST split without --final-test.")
     if split not in {"train", "test"}:
         raise ValueError("split must be train|test")
-    pipeline = pipeline or Pipeline(cfg, dataset.documents)
+    index_seconds = None
+    if pipeline is None:
+        t0 = time.perf_counter()
+        pipeline = Pipeline(cfg, dataset.documents)
+        index_seconds = time.perf_counter() - t0
     ans, neg = dataset.split(split, True), dataset.split(split, False)
     raw_ans, raw_neg = run_queries(pipeline, ans), run_queries(pipeline, neg)
+    operational = operational_metrics(raw_ans + raw_neg, pipeline, index_seconds)
     do_cal = cfg["abstention"]["calibrate"] if calibrate_on_train is None else calibrate_on_train
     calibration = None
     if split == "train" and do_cal:
@@ -116,7 +158,7 @@ def evaluate(cfg: dict, dataset: Dataset, split: str, *, calibrate_on_train: boo
     res = score(raw_ans, raw_neg, {q.qid: q for q in ans}, dataset.documents, cfg)
     res.update({
         "split": split, "config_name": cfg.get("name"), "config_fingerprint": config_fingerprint(cfg),
-        "config": cfg, "calibration": calibration,
+        "config": cfg, "calibration": calibration, "operational": operational,
         "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
     })
     return res
@@ -174,4 +216,9 @@ def format_summary(res: dict) -> str:
     lines.append(f"false_abstention_rate={fmt(a['false_abstention_rate'])} ({a['false_abstentions']}/{a['n_answerable']})  "
                  f"correct_abstention_rate={fmt(a['correct_abstention_rate'])} ({a['correct_abstentions']}/{a['n_unanswerable']})  "
                  f"failure_to_abstain_rate={fmt(a['failure_to_abstain_rate'])}  balanced_acc={fmt(a['balanced_accuracy'])}")
+    op = res.get("operational")
+    if op:
+        lines.append(f"operational: index_build_s={fmt(op['index_build_seconds'])}  "
+                     f"mean_query_s={fmt(op['mean_query_seconds'])}  mean_rerank_s={fmt(op['mean_rerank_seconds'])}  "
+                     f"model_load_s={fmt(op['reranker_model_load_seconds'])}  peak_rss_mib={op['peak_rss_mib']}")
     return "\n".join(lines)

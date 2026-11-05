@@ -88,7 +88,9 @@ def main() -> None:
     st.success(f"Found {len(res.passages)} passage(s)  ({res.signal_text()})")
     for p in res.passages:
         with st.container(border=True):
-            st.markdown(f"**#{p['rank']}** &nbsp; score `{p['score']:.4f}` &nbsp; "
+            rr = (f"rerank `{p['rerank_score']:.4f}` (BM25 rank {p['bm25_rank']}) &nbsp; "
+                  if p.get("rerank_score") is not None else "")
+            st.markdown(f"**#{p['rank']}** &nbsp; score `{p['score']:.4f}` &nbsp; {rr}"
                         f"offsets `[{p['start_offset']}, {p['end_offset']})`")
             st.caption(p["document_id"])
             st.text(p["text"])

@@ -39,6 +39,10 @@ CIA is a retrieval aid. It doesn't interpret contracts and doesn't give legal ad
 - **Optional dense / hybrid retrieval:** sentence-transformers embeddings and reciprocal-rank
   fusion are implemented behind an optional extra. They are **not evaluated** and **not used** by
   the baseline or final configuration.
+- **Optional cross-encoder reranking (experimental, off by default):** a second stage that
+  re-scores the top BM25 chunks with `cross-encoder/ms-marco-MiniLM-L-6-v2`
+  ([`src/rerank.py`](src/rerank.py)). On train it made retrieval **worse** than `candidate_v4`
+  and was rejected (REPORT.md §12). It is not used by any baseline, final or candidate config.
 
 No LLM is used at inference time. Claude Code was used as a development tool (see
 [AI-tool usage](#ai-tool-usage)); it isn't part of the retrieval system.
@@ -56,7 +60,7 @@ Development and testing were done on Linux; other platforms haven't been tested.
 git clone <repository-url> CIA && cd CIA
 uv sync                      # core + dev dependencies, pinned in uv.lock
 source .venv/bin/activate    # or prefix commands with `uv run`
-uv sync --extra dense        # optional: dense/hybrid dependencies (CPU PyTorch, large download)
+uv sync --extra dense        # optional: dense/hybrid + reranker dependencies (CPU PyTorch, large download)
 ```
 
 The alternative with pip is `pip install -r requirements.txt`. That file is exported from
@@ -161,6 +165,7 @@ sidebar *Contract* selector in the app).
 | `improve` | `--config`, `--spec`, `--run-name`, `--max-iterations` | the train-only improvement loop |
 | `error-analysis` | `--config`, `--out`, `--per-category` | categorised failures on the train split |
 | `demo-check` | `--config`, `--top-k`, `--n-types` | PASS/FAIL battery: train queries, train negatives, unusual inputs |
+| `compare` | `RUN_DIR ...`, `--k`, `--extra-k`, `--qids`, `--out` | side-by-side metrics of saved `evaluate` runs (recall@10 recomputed from stored top-10), plus a per-query rank table |
 
 ## Architecture
 
@@ -169,6 +174,7 @@ src/data.py            cuad.json -> mini() -> SHA-256 split; load referenced con
 src/chunking.py        boundary-aware chunks with exact [start, end) offsets
 src/text.py            search-only tokenisation; "Consider <preamble>; <question>" parsing
 src/retrieval.py       BM25, contract routing, ranking, overlap handling, evidence signals
+src/rerank.py          optional second stage: cross-encoder reranking of BM25 candidates (off by default)
 src/abstention.py      abstention rule and train-only threshold calibration
 src/pipeline.py        Pipeline.search: shared by the CLI, the app and evaluation
 src/metrics.py         character-level precision/recall/F1@k; abstention metrics
@@ -176,6 +182,7 @@ src/evaluation.py      per-query and aggregate results; test-run log
 src/diagnostics.py     failure categories and error-analysis output
 src/improvement_loop.py  train-only candidate evaluation and acceptance
 src/demo_check.py      demo battery
+src/compare.py         read-only comparison of saved evaluation runs
 src/cli.py, app.py     CLI and Streamlit front ends
 ```
 
@@ -199,7 +206,15 @@ query ─► parse "Consider <preamble>; <question>"
 | [`configs/candidate_v4.yaml`](configs/candidate_v4.yaml) | `final.yaml` + generic-term removal + query expansion, accepted by the train-only loop run 4; **not evaluated on the test split** (REPORT.md §11) |
 | [`configs/loop.yaml`](configs/loop.yaml) | loop protocol (primary metric, guardrails, tolerances) and candidate list (runs 1–3), with a change log |
 | [`configs/loop_v4.yaml`](configs/loop_v4.yaml) | same protocol; candidates for run 4, starting from `final.yaml` |
-| [`configs/experiments/`](configs/experiments/) | single-change ablation configs (B, C, D, exp 4, exp 5) used in REPORT.md §11.7–11.9 |
+| [`configs/experiments/`](configs/experiments/) | single-change ablation configs (B, C, D, exp 4, exp 5) used in REPORT.md §11.7–11.9; `exp6_cross_encoder.yaml` (`candidate_v4` + reranking of the top 50) and `exp6b_cross_encoder_k10.yaml` (top 10) used in §12 |
+
+**Reranker options** (`reranker:` section; `enabled: false` unless set): `backend` (`cross_encoder`),
+`model_name`, `candidate_k` (BM25 chunks re-scored; the result count is still `--top-k`),
+`batch_size`, `device` (`cpu`), `max_length`, `query_text` (`question` | `full`) and
+`local_files_only` (`true` = offline after the first download). Reranking changes only the
+order: offsets, text and the BM25 `score` are preserved, and each reranked passage also carries
+`rerank_score` and `bm25_rank`. Abstention still uses the configured BM25 signal. It needs
+`uv sync --extra dense` and a one-time download of the model (about 87 MB, Apache-2.0).
 
 All keys and their defaults are in [`src/config.py`](src/config.py) (`DEFAULTS`). Read the YAML
 files for current values.
@@ -229,6 +244,13 @@ python -m src.cli evaluate --config configs/candidate_v4.yaml --no-calibrate
 python -m src.cli evaluate --config configs/experiments/exp1_drop_generic.yaml --out artifacts/eval/<new>_B
 python -m src.cli evaluate --config configs/experiments/exp2_expansion.yaml --out artifacts/eval/<new>_C
 python -m src.cli evaluate --config configs/experiments/exp3_drop_generic_expansion.yaml --out artifacts/eval/<new>_D
+# cross-encoder reranking experiment (train; needs `uv sync --extra dense`; REPORT.md §12):
+python -m src.cli evaluate --config configs/final.yaml --out artifacts/eval/<new>_A
+python -m src.cli evaluate --config configs/candidate_v4.yaml --out artifacts/eval/<new>_B
+python -m src.cli evaluate --config configs/experiments/exp6_cross_encoder.yaml --out artifacts/eval/<new>_C
+python -m src.cli compare artifacts/eval/<new>_A artifacts/eval/<new>_B artifacts/eval/<new>_C \
+  --qids cuad-51b4e44436 cuad-0f789ebcf3 cuad-05251665f3 cuad-3fdb534e55 cuad-5fce387d80 cuad-7646cba011
+python -m src.cli demo-check --config configs/experiments/exp6_cross_encoder.yaml
 python -m src.cli error-analysis --config configs/final.yaml            # train split
 python -m src.cli demo-check --config configs/final.yaml
 streamlit run app.py
@@ -267,7 +289,7 @@ the threshold on test.
 ## Testing
 
 ```bash
-python -m pytest -q          # most recent run: 101 passed, 1 xfailed
+python -m pytest -q          # most recent run: 130 passed, 1 xfailed
 ```
 
 | File | Covers |
@@ -278,6 +300,7 @@ python -m pytest -q          # most recent run: 101 passed, 1 xfailed
 | `tests/test_retrieval.py` | BM25 against a hand-computed score, ranking/ties, top-k, routing, overlap policies, contract identity, document filter (must return evidence: alias, full ID, invalid, no relevant passages, override of a named contract), generic-term removal, query expansion, passage refinement, abstention signals, dense/hybrid paths with a stub encoder |
 | `tests/test_abstention.py` | threshold equality, calibration, single- and two-threshold rules, false abstention and failure to abstain |
 | `tests/test_improvement_loop.py` | one-command run, train-only data, logging, rejected candidates never overwrite the accepted config, frozen-set integrity, reproducibility |
+| `tests/test_rerank.py` | reranker on/off, ordering, ties, empty and short candidate lists, duplicates, preserved ids/offsets/text/BM25 scores, stored reranker scores, lazy CPU loading, batch size, load/inference failures, document filter, unchanged abstention, evaluation and `compare` output (mocked models); one optional real-model smoke test (`dense` marker, skipped if the model isn't cached) |
 | `tests/test_end_to_end.py` | CLI, headless Streamlit (`AppTest`), invalid config, evaluation outputs, test-split refusal, `show-span`, `demo-check` |
 
 The one `xfailed` test is intentional: `test_real_bicycletx_ip_is_answered` is marked
@@ -294,6 +317,7 @@ prepared benchmark under `data/raw/` and are skipped otherwise.
 |---|---|---|---|
 | `configs/final.yaml` | 4/10 | 4/4 | 14/14 |
 | `configs/candidate_v4.yaml` | **8/10** | 4/4 | 14/14 |
+| `configs/experiments/exp6_cross_encoder.yaml` (rejected) | 6/10 | 4/4 | 14/14 |
 
 With `candidate_v4`, the two remaining group-A failures are genuine errors: one ranking miss
 (Theravance; the gold passage is at rank 6) and one false abstention (BicycleTX IP). Failures in
@@ -311,6 +335,8 @@ document-filter check was corrected (REPORT.md §11).
 - **Lexical matching.** Paraphrased clauses with different vocabulary can be missed. The query
   expansion in `candidate_v4` covers a fixed set of clause concepts only.
 - **Dense/hybrid retrieval** is implemented but not evaluated.
+- **Cross-encoder reranking** (general-domain MS MARCO model) was evaluated on train and lowered
+  retrieval quality; it stays off (REPORT.md §12).
 - **The unanswerable set** is hand-authored (35 queries), and only 7 fall in the test split, so
   evidence about abstention is limited.
 - **Small benchmark.** 29 contracts, shared between train and test.

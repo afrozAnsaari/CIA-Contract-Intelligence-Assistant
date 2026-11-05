@@ -948,3 +948,236 @@ BicycleTX case above. Regression tests cover:
 - **Negation.** The global stopword list (unchanged since the baseline) removes "no", "not" and
   "nor" from search text.
 - **Untested alternatives.** Dense/hybrid retrieval and reranking remain unevaluated.
+  *(Update: cross-encoder reranking was evaluated afterwards on train and rejected; see §12.
+  Dense/hybrid retrieval remains unevaluated.)*
+
+## 12. Train-only experiment 6: cross-encoder reranking (rejected)
+
+This section was written after the implementation and the train runs below were complete. All
+numbers are train-split measurements (140 answerable / 28 unanswerable). **No test-split
+evaluation was run** (`artifacts/test_runs.jsonl` still has 3 entries). `configs/final.yaml` and
+`configs/candidate_v4.yaml` were not modified.
+
+### 12.1 Motivation
+
+After run 4, some relevant clauses were still ranked below lexically closer but irrelevant ones,
+mainly Theravance (§11.7: gold at rank 6 because "termination for convenience" is written
+"in its sole and absolute discretion … at any time"). A cross-encoder reads the question and a
+passage together, so it can in principle match meaning rather than shared words. The experiment
+asks whether it ranks BM25's own candidates better. BM25 stays the first-stage retriever.
+
+### 12.2 Two-stage architecture (`src/rerank.py`, `src/retrieval.py: Index.retrieve`)
+
+```
+query ─► parse preamble / question ─► route to one contract (or --document filter)
+      ─► abstention signals from BM25 (unchanged, computed here, before any reranking)
+      ─► ranking query: generic-term removal + concept expansion (unchanged)
+      ─► BM25 ranks the routed contract's chunks (stage 1, unchanged)
+      ─► NEW, only if reranker.enabled: cross-encoder scores (question, chunk text) for the top
+         candidate_k BM25 chunks; those are re-sorted by that score, the rest keep BM25 order
+      ─► overlap handling (trim) and top-k selection (unchanged) ─► abstention decision (unchanged)
+```
+
+- **Integration point.** Between the BM25-sorted chunk list and `_select`. Reranking works on
+  whole chunks, before the overlap policy trims passages, so trimming still runs in the final
+  order and returned passages never overlap.
+- **What can change.** Only the order. Reranking never adds or removes candidates, so routing and
+  the document filter hold. Chunk ids, document ids, offsets and text are untouched, and
+  `Pipeline.search` still checks every passage against the source.
+- **Scores.** `Passage.score` remains the BM25 score. Reranked passages also carry `rerank_score`
+  and `bm25_rank` (the chunk's 1-based BM25 rank). Both fields are omitted when reranking is off,
+  so disabled output is byte-identical to before.
+- **Ties** on the reranker score keep BM25 order. Duplicate chunk ids are scored once. An empty
+  candidate list never loads or calls the model.
+- **Failures.** A model-load or inference failure, a wrong number of scores, or NaN scores raise
+  `RerankError`, which `Pipeline` re-raises as `PipelineError`. There is no silent fallback to
+  BM25 order.
+- **Lazy loading.** The model loads on the first query that has candidates, never at import or
+  when the index is built.
+- **Query text.** `reranker.query_text: question` passes the question without the contract
+  preamble, the same text BM25 ranks with. Routing has already chosen the contract.
+
+Configuration (defaults in `src/config.py`; `enabled: false` everywhere except the exp 6 files):
+
+```yaml
+reranker:
+  enabled: false
+  backend: cross_encoder
+  model_name: cross-encoder/ms-marco-MiniLM-L-6-v2
+  candidate_k: 50        # BM25 chunks re-scored; the final count is still top_k / max_k
+  batch_size: 16
+  device: cpu
+  max_length: 512        # tokens per (question, chunk) pair
+  query_text: question   # question | full
+  local_files_only: false  # true => offline after the first download
+```
+
+- **Fingerprints.** A disabled reranker section is excluded from `config_fingerprint`, so adding
+  the defaults did not change the fingerprints of existing configs (`configs/final.yaml` is still
+  `e1c913daee266b6c` in this code version). The index fingerprint is unchanged
+  (`8d4a7984b2102b7b`), because reranking doesn't change the index.
+- **Abstention signal.** A new signal `rerank_top_score` (the best reranker score) was added for
+  a possible separate abstention experiment. It requires `reranker.enabled` and is not used by
+  any evaluated config (§12.6).
+
+### 12.3 Model
+
+| Item | Value |
+|---|---|
+| Model | `cross-encoder/ms-marco-MiniLM-L-6-v2` (Hugging Face Hub, revision `233902d…`) |
+| Training data | MS MARCO passage ranking (web search queries); **not legal text** |
+| Size | 22,713,601 parameters (measured); `model.safetensors` 87 MB on disk |
+| Licence | Apache-2.0 (model card). It was trained on MS MARCO, whose own terms restrict use to non-commercial research; check both before any commercial use |
+| Dependencies | optional extra `uv sync --extra dense` (sentence-transformers 6.2.0, CPU-only torch 2.15.0) |
+| Download | once, from the Hub, on first use; afterwards `local_files_only: true` or `HF_HUB_OFFLINE=1` runs offline |
+| Hardware | CPU only (measured on 12 logical CPUs, 15 GiB RAM); no GPU, no paid API |
+
+Why this model: it is the smallest widely used general-purpose cross-encoder, runs on CPU and
+is already supported by the project's optional dependency stack. It was **not** chosen for legal
+competence. Whether a web-search relevance model transfers to contract clauses was the open
+question, and only this one model was evaluated. No other models were downloaded.
+
+### 12.4 Train results
+
+Commands (each run in a new directory; thresholds calibrated on train for each config, as in
+§11.7):
+
+```bash
+python -m src.cli validate-data
+python -m src.cli evaluate --config configs/final.yaml --split train --out artifacts/eval/exp6_A_final_train
+python -m src.cli evaluate --config configs/candidate_v4.yaml --split train --out artifacts/eval/exp6_B_candidate_v4_train
+python -m src.cli evaluate --config configs/experiments/exp6_cross_encoder.yaml --split train --out artifacts/eval/exp6_C_cross_encoder_train
+python -m src.cli evaluate --config configs/experiments/exp6b_cross_encoder_k10.yaml --split train --out artifacts/eval/exp6b_cross_encoder_k10_train
+python -m src.cli compare artifacts/eval/exp6_A_final_train artifacts/eval/exp6_B_candidate_v4_train \
+  artifacts/eval/exp6_C_cross_encoder_train artifacts/eval/exp6b_cross_encoder_k10_train \
+  --qids cuad-51b4e44436 cuad-0f789ebcf3 cuad-05251665f3 cuad-3fdb534e55 cuad-5fce387d80 cuad-7646cba011
+```
+
+A and B reproduce §11.7 exactly, which confirms that the code change left the reranker-off path
+unchanged. Exp 6b (`candidate_k: 10`) is a single sensitivity check. It was not tuned further,
+and it is not a selection candidate.
+
+| Metric | A: `final.yaml` | B: `candidate_v4` | C: B + rerank top 50 | 6b: B + rerank top 10 |
+|---|---:|---:|---:|---:|
+| precision@1 | 0.1745 | **0.2464** | 0.1874 | 0.1991 |
+| recall@1 | 0.4032 | **0.5508** | 0.4259 | 0.4430 |
+| F1@1 | 0.2228 | **0.3108** | 0.2371 | 0.2471 |
+| precision@2 | 0.1246 | **0.1827** | 0.1370 | — |
+| recall@2 | 0.4740 | **0.6524** | 0.5463 | — |
+| F1@2 | 0.1818 | **0.2636** | 0.2016 | — |
+| precision@5 | 0.0787 | **0.1049** | 0.0841 | 0.0923 |
+| recall@5 | 0.6174 | **0.8095** | 0.7050 | 0.7514 |
+| F1@5 | 0.1306 | **0.1743** | 0.1419 | 0.1553 |
+| recall@10 † | 0.7039 | **0.8805** | 0.8248 | **0.8805** |
+| recall@64 | 0.8778 | 0.9517 | 0.9517 | 0.9517 |
+| false abstentions | 3/140 | 3/140 | 3/140 | 3/140 |
+| correct abstentions | 28/28 | 28/28 | 28/28 | 28/28 |
+| failure to abstain | 0/28 | 0/28 | 0/28 | 0/28 |
+| balanced accuracy | 0.989 | 0.989 | 0.989 | 0.989 |
+| calibrated threshold | 0.2739 | 0.2739 | 0.2739 | 0.2739 |
+| offset errors | 0 | 0 | 0 | 0 |
+| demo A / B / C | 4/10 · 4/4 · 14/14 | 8/10 · 4/4 · 14/14 | 6/10 · 4/4 · 14/14 | not run |
+
+† Recall@10 is not in `evaluation.k_values`. `compare` recomputes it with `src/metrics.py` from
+the stored top-10 passages, and it checks that the same recomputation reproduces `metrics.json` at
+k = 5 for every run. Exp 6b's k = 2 values are in its `metrics.json`; they were omitted here
+because exp 6b is only a sensitivity check. Recall@10 is identical for B and 6b because
+reranking the top 10 only permutes them.
+
+**Reading.** With the top-50 pool (C), every retrieval metric is worse than `candidate_v4` at
+every reported k ≤ 10. With the top-10 pool (6b), every metric is worse at k ≤ 5, and recall@10
+is equal. At k = 64 recall is unchanged by construction, because the same candidates are returned
+in a different order. The shallower pool hurts less only because it moves fewer passages. Against
+the BM25 order the top-1 passage changed for 91/168 queries with top 50 and 89/168 with top 10.
+In the inspected cases the move was usually away from gold, consistent with the metric drops.
+
+**Abstention.** Unchanged: 0 of 168 decisions differ between B and C. This is expected, because
+the configured signal (`chunk_full_bm25_norm`) is the best BM25 score over the routed contract's
+chunks. It is computed before reranking and doesn't depend on which passage ends up at rank 1.
+Reranking therefore cannot change which evidence abstention sees.
+
+### 12.5 The six audited cases (rank of the first gold-overlapping passage)
+
+From `artifacts/eval/exp6_comparison_k10_train.json`; "bm25" is that chunk's stage-1 rank and
+"ce" its reranker logit:
+
+| Query | B: `candidate_v4` | C: rerank top 50 | 6b: rerank top 10 |
+|---|---|---|---|
+| Theravance, termination for convenience (`cuad-51b4e44436`) | 6 | 10 (bm25 6, ce −6.68) | 7 |
+| Bon-Ton, anti-assignment (`cuad-0f789ebcf3`) | 1 | 9 (bm25 2, ce −5.46) | 5 |
+| Sucampo, audit rights (`cuad-05251665f3`) | 1 | 6 (bm25 1, ce −7.32) | 3 |
+| Tate & Lyle, exceptions to competition (`cuad-3fdb534e55`) | 1 | 5 (bm25 4, ce −6.75) | 2 |
+| Depomed/King, exclusivity (`cuad-5fce387d80`) | 1 | 4 (bm25 1, ce −8.02) | 2 |
+| BicycleTX, IP ownership (`cuad-7646cba011`) | 1, abstained | 2, abstained | 2, abstained |
+
+- **Theravance is not fixed.** It falls from rank 6 to 10. The model's top choice for this query
+  was a misrepresentation/entire-agreement clause that BM25 ranked 21st (ce −3.23 vs −6.68 for
+  gold). Gold texts score strongly negative in all five answerable cases, so the model does not
+  recognise these clauses as answers.
+- **Bon-Ton, Sucampo, Tate & Lyle and Depomed** were all at rank 1 under `candidate_v4`, and
+  reranking pushes each of them down.
+- **BicycleTX (E1) is still a false abstention.** Reranking can't change that decision (§12.4).
+  As a separate offline check, the reranker's best score was compared for E1 and its unanswerable
+  counterpart `unans-025` (§11.8): −2.28 for E1 vs −1.29 for `unans-025`. As with the lexical
+  signals, the unanswerable query scores **higher**, so this signal can't separate the pair
+  either.
+
+### 12.6 Reranker-based abstention: not warranted
+
+No separate abstention run was made. Instead, the existing `calibrate()` was applied to the best
+reranker score of the exp 6 train queries (from `per_query.jsonl`; 140 answerable, and 13 of the
+28 negatives that have candidates; the other 15 have no candidates and always abstain). The best
+threshold (−5.39) gives balanced accuracy **0.760** on those queries: 116/140 answered and 9/13
+abstained. Including the 15 no-candidate negatives, that is about 0.84 overall, versus **0.989**
+for the BM25 signal. The `rerank_top_score` signal stays available in code (default unused,
+covered by tests), but no config uses it.
+
+### 12.7 Operational measurements (one process per run, this machine)
+
+From `metrics.json → operational` (`src/evaluation.py: operational_metrics`):
+
+| Measurement | B: `candidate_v4` | C: rerank top 50 | 6b: rerank top 10 |
+|---|---:|---:|---:|
+| index build (chunk + BM25) | 0.39 s | 0.40 s | 0.42 s |
+| model load (warm cache) | — | 6.3 s | 7.0 s |
+| mean candidates reranked per query | — | 29.9 | 9.5 |
+| mean reranking latency per reranked query | — | 1.12 s | 0.32 s |
+| mean total query latency (all 168 queries) | 0.0008 s | 1.02 s | 0.29 s |
+| peak resident memory (process) | 55 MiB | 945 MiB | 862 MiB |
+
+- **Model load** is the first `CrossEncoder(...)` call with the files already cached, including
+  the Hub freshness check (`local_files_only: false`). The very first download wasn't cleanly
+  timed.
+- **Mean query latency** includes queries that never reach the reranker (no candidates), so it
+  can be below the mean reranking latency.
+- **Peak memory** is the process's `ru_maxrss`, so it includes importing torch.
+- **Cost.** Reranking adds about 1,300× query latency at `candidate_k: 50`, roughly 17× memory,
+  and a torch dependency.
+
+### 12.8 Limitations of this experiment
+
+- **One model.** A single general-domain model was evaluated. A cross-encoder trained or
+  fine-tuned on legal or contract data might behave differently. That is unmeasured, and
+  fine-tuning on this benchmark's train split would need care to avoid in-sample gains.
+- **Untested settings.** Pure reranking replaces the BM25 order inside the pool. Score fusion
+  (e.g. RRF of BM25 and reranker ranks) was not tried.
+- **Chunk text only.** The model scores the whole chunk (≤ 1,000 characters), not the trimmed
+  passage that is returned.
+- **Train only, in-sample.** Results are from the train split. The six cases also informed
+  `candidate_v4`'s expansion rules (§11.6), so B's numbers on them are in-sample.
+- **Determinism.** CPU inference repeated within this environment, but the results haven't been
+  checked across torch versions or hardware.
+
+### 12.9 Decision
+
+**Rejected; reranking stays experimental and off.** On train, the cross-encoder lowers P@1 from
+0.2464 to 0.1874, R@5 from 0.8095 to 0.7050 and F1@5 from 0.1743 to 0.1419. It fixes none of the
+audited failures, demotes the four fixed ones, and leaves abstention unchanged. It also costs
+about a second per query and about 0.9 GiB of memory. `configs/candidate_v4.yaml` remains the
+best train configuration, and `configs/final.yaml` remains the tested one. The code path is kept,
+off by default and covered by tests, so that a legal-domain reranker can be evaluated later
+under the same protocol.
+
+**Tests.** `python -m pytest -q` gives **130 passed, 1 xfailed** (29 new tests in
+`tests/test_rerank.py`, using mocked scorers plus one optional real-model smoke test). The xfail
+is still the BicycleTX case.

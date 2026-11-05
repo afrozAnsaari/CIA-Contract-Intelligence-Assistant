@@ -8,6 +8,7 @@ from pathlib import Path
 from .abstention import decide
 from .config import load_config
 from .data import load_documents, load_mini_tests, referenced_documents
+from .rerank import RerankError, Scorer
 from .retrieval import Index, RetrievalOutput
 
 DISCLAIMER = ("Retrieval aid only - not legal advice. Passages are verbatim excerpts with source "
@@ -49,10 +50,11 @@ class SearchResult:
 
 
 class Pipeline:
-    def __init__(self, cfg: dict, documents: dict[str, str], index: Index | None = None):
+    def __init__(self, cfg: dict, documents: dict[str, str], index: Index | None = None,
+                 reranker_scorer: Scorer | None = None):
         self.cfg = cfg
         self.documents = documents
-        self.index = index or Index(cfg, documents)
+        self.index = index or Index(cfg, documents, reranker_scorer=reranker_scorer)
 
     @classmethod
     def from_config(cls, config: str | Path | dict | None = None, overrides: dict | None = None,
@@ -86,7 +88,10 @@ class Pipeline:
         """Raw ranked retrieval (no abstention). Used by evaluation."""
         if not isinstance(query, str) or not query.strip():
             raise PipelineError("Query is empty.")
-        return self.index.retrieve(query, int(k or self.max_k), document_id=document_id)
+        try:
+            return self.index.retrieve(query, int(k or self.max_k), document_id=document_id)
+        except RerankError as e:  # never fall back silently to the BM25 order
+            raise PipelineError(f"Reranking failed: {e}") from e
 
     def search(self, query: str, top_k: int = 5, document: str | None = None) -> SearchResult:
         """End-to-end search with abstention: what users see in the CLI and web app.

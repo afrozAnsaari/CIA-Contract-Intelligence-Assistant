@@ -76,10 +76,24 @@ DEFAULTS: dict[str, Any] = {
             "head_chars": 3000,
         },
     },
+    # Optional second stage (src/rerank.py): cross-encoder reranking of the top `candidate_k`
+    # BM25 chunks. Off by default; when off, retrieval is identical to BM25-only.
+    "reranker": {
+        "enabled": False,
+        "backend": "cross_encoder",
+        "model_name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        "candidate_k": 50,  # BM25 candidates re-scored; the rest keep BM25 order after them
+        "batch_size": 16,
+        "device": "cpu",
+        "max_length": 512,  # tokens per (query, passage) pair; longer pairs are truncated
+        "query_text": "question",  # question (ranking query text without preamble) | full
+        "local_files_only": False,  # true => never contact the Hub (offline after first download)
+    },
     "abstention": {
         "enabled": True,
         # Signal options: chunk_bm25_norm | chunk_full_bm25_norm | chunk_split_bm25_norm |
-        #                 doc_bm25_norm | dense_max_cos | doc_and_chunk
+        #                 doc_bm25_norm | dense_max_cos | doc_and_chunk | identity_and_question |
+        #                 rerank_top_score (needs reranker.enabled; raw cross-encoder logit)
         "signal": "chunk_bm25_norm",
         "threshold": 0.0,  # abstain iff signal < threshold (equality => answer)
         "doc_threshold": 0.0,  # only used by doc_and_chunk (applies to doc_bm25_norm)
@@ -162,7 +176,7 @@ def validate_config(cfg: dict) -> None:
         raise ValueError("query.mode must be full|split and query.chunk_query full|question")
     a = cfg["abstention"]
     if a["signal"] not in {"chunk_bm25_norm", "chunk_full_bm25_norm", "chunk_split_bm25_norm", "doc_bm25_norm",
-                           "dense_max_cos", "doc_and_chunk", "identity_and_question"}:
+                           "dense_max_cos", "doc_and_chunk", "identity_and_question", "rerank_top_score"}:
         raise ValueError(f"Unknown abstention.signal {a['signal']!r}")
     if a["signal"] == "identity_and_question" and q["mode"] != "split":
         raise ValueError("abstention.signal identity_and_question requires query.mode: split")
@@ -170,6 +184,16 @@ def validate_config(cfg: dict) -> None:
         raise ValueError(f"abstention.signal {a['signal']} requires retrieval.doc_routing.enabled")
     if a["signal"] == "dense_max_cos" and r["method"] == "bm25":
         raise ValueError("abstention.signal dense_max_cos requires method dense or hybrid")
+    rr = cfg["reranker"]
+    if a["signal"] == "rerank_top_score" and not rr["enabled"]:
+        raise ValueError("abstention.signal rerank_top_score requires reranker.enabled")
+    if rr["enabled"]:
+        if rr["backend"] != "cross_encoder":
+            raise ValueError(f"reranker.backend must be cross_encoder, got {rr['backend']!r}")
+        if int(rr["candidate_k"]) < 1 or int(rr["batch_size"]) < 1:
+            raise ValueError("reranker.candidate_k and reranker.batch_size must be >= 1")
+        if rr["query_text"] not in {"question", "full"}:
+            raise ValueError("reranker.query_text must be question|full")
 
 
 def resolve_path(path: str | Path) -> Path:
@@ -191,6 +215,8 @@ def index_fingerprint(cfg: dict) -> str:
 
 def config_fingerprint(cfg: dict) -> str:
     c = {k: v for k, v in cfg.items() if k not in {"name", "status"}}
+    if not c.get("reranker", {}).get("enabled"):
+        c.pop("reranker", None)  # a disabled reranker does not change results or fingerprints
     return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()[:16]
 
 
