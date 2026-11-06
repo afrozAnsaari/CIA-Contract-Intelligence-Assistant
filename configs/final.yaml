@@ -1,4 +1,8 @@
-name: overlap_up
+# Final configuration (promoted 2026-11-06, REPORT.md §14) = configs/candidate_v4.yaml, which was
+# accepted by the train-only loop run 4 (artifacts/loop/run4_v4/accepted_config.yaml).
+# Held-out test: run #5 in artifacts/test_runs.jsonl (fingerprint 8f6d2afd50a4819e).
+# The previous final (overlap_up) is archived at configs/archive/final_overlap_up.yaml.
+name: final_v4
 status: final
 data:
   raw_dir: data/raw/legalbench-rag
@@ -19,12 +23,18 @@ text:
 query:
   mode: split
   chunk_query: question
-  require_contract: true   # added post-freeze (see REPORT.md 10); no effect on benchmark queries
+  require_contract: true
+  drop_generic_terms: true
+  expand: true
+  expansion_weight: 0.5
 retrieval:
   method: bm25
   max_k: 64
   overlap_policy: trim
   min_trimmed_chars: 50
+  refine:
+    enabled: false
+    max_chars: 600
   index_doc_title: false
   bm25:
     k1: 1.5

@@ -14,6 +14,7 @@ from .config import config_fingerprint, dump_config, resolve_path
 from .data import Dataset, Query
 from .metrics import abstention_metrics, mean_metrics, metrics_at_k
 from .pipeline import Pipeline
+from .verify import apply_verification
 
 PREVIEW_CHARS = 160
 STORE_TOP = 10
@@ -34,6 +35,9 @@ def run_queries(pipeline: Pipeline, queries: list[Query]) -> list[dict]:
             "passages": [(p.document_id, p.start_offset, p.end_offset, p.score) for p in r.passages],
             "query_seconds": seconds,
         }
+        v = getattr(pipeline, "verifier", None)
+        if v is not None and r.passages and not r.unresolved_contract:
+            rec["verification"] = v.verify(q.query, [p.to_dict() for p in r.passages[: v.top_k]]).to_dict()
         if r.timings:  # reranking ran: keep per-passage second-stage evidence next to the BM25 score
             rec["timings"] = r.timings
             rec["rerank"] = [(p.rerank_score, p.bm25_rank) for p in r.passages]
@@ -47,6 +51,10 @@ def operational_metrics(raw: list[dict], pipeline: Pipeline, index_seconds: floa
     qs = [r.get("query_seconds", 0.0) for r in raw]
     rr = [r["timings"]["rerank_seconds"] for r in raw if r.get("timings")]
     scorer = getattr(getattr(pipeline.index, "reranker", None), "scorer", None)
+    ver = getattr(pipeline, "verifier", None)
+    vs = [r["verification"] for r in raw if r.get("verification")]
+    gen = [x["seconds"] for x in vs if not x["cached"]]
+    gen_obj = getattr(ver, "generator", None)
     # Linux reports ru_maxrss in KiB: peak resident memory of the whole process so far.
     peak_mib = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
     return {
@@ -61,6 +69,14 @@ def operational_metrics(raw: list[dict], pipeline: Pipeline, index_seconds: floa
         "reranker_model_load_seconds": getattr(scorer, "load_seconds", None),
         "reranker_n_parameters": getattr(scorer, "n_parameters", None),
         "peak_rss_mib": round(peak_mib, 1),
+        "n_verified_queries": len(vs),
+        "n_verifier_generated": len(gen),
+        "n_verifier_cached": len(vs) - len(gen),
+        "mean_verification_seconds": sum(gen) / len(gen) if gen else None,  # generated (uncached) only
+        "verifier_model_load_seconds": getattr(gen_obj, "load_seconds", None),
+        "verifier_model_bytes": getattr(gen_obj, "model_bytes", None),
+        "verifier_decisions": {k: sum(1 for x in vs if x["decision"] == k)
+                               for k in ("supported", "ambiguous", "insufficient", "invalid", "error")} if vs else None,
         "note": "first reranked query includes lazy model loading in its query_seconds; "
                 "mean_rerank_seconds excludes loading",
     }
@@ -96,11 +112,17 @@ def score(raw_ans: list[dict], raw_neg: list[dict], queries: dict[str, Query], d
         d = decide(len(r["passages"]), r["signals"], cfg["abstention"])
         if r.get("unresolved_contract"):
             d.reason = "contract_not_identified"
+        bm25_abstained = d.abstained
+        if r.get("verification") is not None:
+            d.abstained, d.reason = apply_verification(d.abstained, d.reason, r["verification"],
+                                                       cfg["verifier"]["mode"], bool(r["passages"]))
         rec = {"qid": r["qid"], "query": r["query"], "split": r["split"], "answerable": r["answerable"],
                "category": r["category"], "abstained": d.abstained, "abstention_reason": d.reason,
                "signal": d.signal, "signal_value": d.value, "threshold": d.threshold,
                "doc_signal_value": d.doc_value, "doc_threshold": d.doc_threshold,
                "routed_documents": r["routed_documents"], "expansion_terms": r.get("expansion_terms", {}),
+               **({"bm25_abstained": bm25_abstained, "verification": r["verification"]}
+                  if r.get("verification") is not None else {}),
                "retrieved": [{"rank": i + 1, "document_id": doc, "start_offset": s, "end_offset": e,
                               "score": sc, "preview": documents[doc][s:e][:PREVIEW_CHARS]}
                              for i, (doc, s, e, sc) in enumerate(r["passages"][:STORE_TOP])]}

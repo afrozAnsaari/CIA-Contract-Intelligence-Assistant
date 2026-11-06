@@ -1,5 +1,6 @@
-# Improvement-loop spec v4 (2026-11-02). Run with the CURRENT final config as the baseline:
-#   python -m src.cli improve --config configs/final.yaml --spec configs/loop_v4.yaml --run-name run4_v4
+# Improvement-loop spec v4 (2026-11-02). Run 4 used the then-final config (overlap_up) as its baseline:
+#   python -m src.cli improve --config configs/archive/final_overlap_up.yaml --spec configs/loop_v4.yaml --run-name run4_v4
+#   (run 4 started from the final config of that time, overlap_up, now archived; see REPORT.md §14)
 # Motivation (TRAIN diagnostics only: the six failing answerable demo queries and the run-3
 # failure categories): all six failures route to the correct contract; five are within-contract
 # ranking failures (generic template words such as "agreement" outranking the clause; clause

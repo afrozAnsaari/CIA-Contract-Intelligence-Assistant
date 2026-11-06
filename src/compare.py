@@ -46,6 +46,16 @@ def first_gold_rank(row: dict) -> int | None:
     return None
 
 
+def _with_answerability(a: dict) -> dict:
+    """Derive answer precision/recall from stored counts for runs written before those keys existed."""
+    a = dict(a)
+    if "answer_precision" not in a and a.get("n_answerable") is not None:
+        tp, fp = a["n_answerable"] - a["false_abstentions"], a["n_unanswerable"] - a["correct_abstentions"]
+        a["answer_precision"] = tp / (tp + fp) if tp + fp else None
+        a["answer_recall"] = tp / a["n_answerable"] if a["n_answerable"] else None
+    return a
+
+
 def compare(run_dirs: list[str], ks: list[int], extra_ks: list[int], qids: list[str]) -> dict:
     runs = [load_run(d) for d in run_dirs]
     for k in extra_ks:
@@ -63,7 +73,8 @@ def compare(run_dirs: list[str], ks: list[int], extra_ks: list[int], qids: list[
                           if f"{x}@{k}" in m["retrieval"]},
             "recomputed": {f"{x}@{k}": rec[f"{x}@{k}"] for k in extra_ks for x in ("precision", "recall", "f1")},
             "recompute_matches_metrics_json": check,
-            "abstention": m["abstention"], "threshold": (m.get("calibration") or {}).get("threshold"),
+            "abstention": _with_answerability(m["abstention"]),
+            "threshold": (m.get("calibration") or {}).get("threshold"),
             "offset_errors": m.get("offset_errors"), "operational": m.get("operational"),
             "n_answerable": m["retrieval"].get("n"),
         })
@@ -78,6 +89,7 @@ def compare(run_dirs: list[str], ks: list[int], extra_ks: list[int], qids: list[
             rank = first_gold_rank(r)
             item = r["retrieved"][rank - 1] if rank else None
             case["per_run"].append({"run": run["name"], "first_gold_rank": rank, "abstained": r["abstained"],
+                                    "verifier": (r.get("verification") or {}).get("decision"),
                                     "signal_value": r["signal_value"],
                                     "bm25_rank": item.get("bm25_rank") if item else None,
                                     "rerank_score": item.get("rerank_score") if item else None,
@@ -105,14 +117,17 @@ def format_comparison(c: dict) -> str:
         label = key + (" (top-10 recompute)" if src == "recomputed" else "")
         lines.append(f"| {label} | " + " | ".join(f(r[src].get(key)) for r in c["runs"]) + " |")
     for key in ("false_abstentions", "correct_abstentions", "failures_to_abstain", "false_abstention_rate",
-                "correct_abstention_rate", "failure_to_abstain_rate", "balanced_accuracy"):
+                "correct_abstention_rate", "failure_to_abstain_rate", "balanced_accuracy",
+                "answer_precision", "answer_recall"):
         lines.append(f"| {key} | " + " | ".join(f(r["abstention"].get(key), 3) for r in c["runs"]) + " |")
     lines.append("| calibrated threshold | " + " | ".join(f(r["threshold"]) for r in c["runs"]) + " |")
     lines.append("| offset errors | " + " | ".join(f(r["offset_errors"]) for r in c["runs"]) + " |")
     lines.append("| recompute check (k=5) | " + " | ".join("ok" if r["recompute_matches_metrics_json"]
                                                           else "MISMATCH" for r in c["runs"]) + " |")
     op_keys = ("index_build_seconds", "mean_query_seconds", "mean_rerank_seconds", "mean_candidates_reranked",
-               "reranker_model_load_seconds", "reranker_n_parameters", "peak_rss_mib")
+               "reranker_model_load_seconds", "reranker_n_parameters", "peak_rss_mib",
+               "n_verified_queries", "n_verifier_generated", "mean_verification_seconds",
+               "verifier_model_load_seconds", "verifier_model_bytes")
     if any(r["operational"] for r in c["runs"]):
         for key in op_keys:
             lines.append(f"| {key} | " + " | ".join(f((r["operational"] or {}).get(key), 4) for r in c["runs"]) + " |")
@@ -132,6 +147,8 @@ def format_comparison(c: dict) -> str:
                 s = str(p["first_gold_rank"]) if p["first_gold_rank"] else ">10"
                 if p["abstained"]:
                     s += " (abst.)"
+                if p.get("verifier"):
+                    s += f" {{v: {p['verifier']}}}"
                 if p["bm25_rank"] is not None:
                     s += f" [bm25 {p['bm25_rank']}, ce {p['rerank_score']:.2f}]"
                 cells.append(s)

@@ -5,16 +5,23 @@ re-extracted from those artifacts during the final documentation audit are marke
 *(re-checked)*. Facts known only from the development session's console output, with no saved
 artifact, are marked *(session record only)*. No test-split evaluation was run during the audit.
 
+**Naming note (2026-11-06).** `configs/candidate_v4.yaml` was promoted to `configs/final.yaml`
+(§14). In §2–§13, written before the promotion, "final" and `configs/final.yaml` mean the
+**previous** final configuration `overlap_up`, now kept unchanged at
+`configs/archive/final_overlap_up.yaml`. To reproduce a command from those sections, substitute
+that path.
+
 ## 1. Executive summary
 
 **What was built.**
 - A deterministic retrieval system that returns verbatim contract passages with exact
   `[start, end)` character offsets, or abstains when the evidence is insufficient.
-- In the final configuration:
+- In the final configuration (`configs/final.yaml`, promoted from `candidate_v4`, §14):
   - each query's contract preamble routes it to one contract;
-  - BM25 ranks that contract's chunks using the question alone;
-  - a normalised BM25 score of the full query, with a train-calibrated threshold, decides
-    abstention.
+  - BM25 ranks that contract's chunks using the question alone, with generic template words
+    removed and a controlled clause vocabulary added at half weight (§11);
+  - a normalised BM25 score of the full, unmodified query, with a train-calibrated threshold,
+    decides abstention.
 - No LLM is used at inference time.
 
 **Benchmark.**
@@ -22,52 +29,62 @@ artifact, are marked *(session record only)*. No test-split evaluation was run d
   SHA-256 rule into 140 train / 54 test.
 - 35 hand-authored unanswerable queries (28 train / 7 test).
 
-**Test evaluations.** Three test evaluations were recorded in total (`artifacts/test_runs.jsonl`):
+**Test evaluations.** Nine test evaluations were recorded in total (`artifacts/test_runs.jsonl`):
 
 | # | Config | Role |
 |---|---|---|
 | 1 | provisional | an early run, equivalent to the baseline, made before any final selection |
-| 2 | final | the selected configuration |
+| 2 | `overlap_up` | the previous final configuration |
 | 3 | baseline | the comparison point |
+| 4 | `overlap_up` | reproduction check (identical results to #2) |
+| 5 | `candidate_v4` | **the current final configuration** (promoted after this run, §14) |
+| 6–8 | verifier rescue, MiniLM reranker, gte reranker | reporting runs for experiments already rejected or not promoted on train (§14) |
+| 9 | `final_v4` (promoted `configs/final.yaml`) | confirmation run; identical to #5 |
 
-This report presents the baseline-versus-final comparison from runs #3 and #2 and documents run
-#1 separately (§10).
+Runs #1–#3 are documented in §10, runs #4–#9 in §14.
 
-**Held-out test results** *(re-checked;* `artifacts/eval/overlap_up_test_20261102-153405/metrics.json`,
-`artifacts/eval/baseline_test_20261102-153427/metrics.json`*)*:
+**Held-out test results** *(sources:* `artifacts/eval/baseline_test_20261102-153427/`,
+`artifacts/eval/overlap_up_test_20261102-153405/`, `artifacts/eval/cmp_test_B_candidate_v4/`,
+each `metrics.json`*)*:
 
-| Test metric (54 answerable / 7 unanswerable) | Baseline | Final |
-|---|---:|---:|
-| precision@1 | 0.0032 | 0.1788 |
-| recall@1 | 0.0185 | 0.4328 |
-| precision@5 | 0.0075 | 0.0947 |
-| recall@5 | 0.1278 | 0.7144 |
-| F1@5 (selection objective) | 0.0138 | 0.1514 |
-| recall@64 | 0.3779 | 0.8895 |
-| false abstentions (answerable) | 3/54 | 1/54 |
-| correct abstentions (unanswerable) | 7/7 | 7/7 |
-| balanced abstention accuracy | 0.972 | 0.991 |
-| offset errors | 0 | 0 |
+| Test metric (54 answerable / 7 unanswerable) | Baseline | Previous final (`overlap_up`) | **Final (`candidate_v4`)** |
+|---|---:|---:|---:|
+| precision@1 | 0.0032 | 0.1788 | **0.2638** |
+| recall@1 | 0.0185 | 0.4328 | **0.5880** |
+| precision@5 | 0.0075 | 0.0947 | **0.1011** |
+| recall@5 | 0.1278 | 0.7144 | **0.7821** |
+| F1@5 (selection objective) | 0.0138 | 0.1514 | **0.1607** |
+| recall@64 | 0.3779 | 0.8895 | **0.9612** |
+| false abstentions (answerable) | 3/54 | 1/54 | 1/54 |
+| correct abstentions (unanswerable) | 7/7 | 7/7 | 7/7 |
+| balanced abstention accuracy | 0.972 | 0.991 | 0.991 |
+| offset errors | 0 | 0 | 0 |
 
-**Main improvement.** Most of the gain came from separating *which contract* (routing by the
-preamble) from *where in the contract* (ranking by the question). In the baseline, party names
-pulled the top passage to the contract header in 124/140 train queries.
+**Main improvements.**
+- Most of the gain over the baseline came from separating *which contract* (routing by the
+  preamble) from *where in the contract* (ranking by the question). In the baseline, party names
+  pulled the top passage to the contract header in 124/140 train queries.
+- The promoted query refinement (§11) then raised test recall@1 from 0.433 to 0.588 with
+  abstention unchanged.
 
-**Remaining weakness.** Precision is low: P@5 = 0.095 on test, so under 10% of the returned
-characters are gold text on average.
+**Remaining weaknesses.**
+- Precision is low: P@5 = 0.101 on test, so about 10% of the returned characters are gold text.
+- 9/54 test questions, mostly "is there a … clause" questions, have no gold text in the top 5.
+- Cross-encoder reranking and an LLM evidence verifier were tested and did not help (§12–§14).
 
-**Protocol caveats** (§10):
-- the test split was evaluated three times;
+**Protocol caveats** (§10, §14.4):
+- the test split was evaluated nine times, and the final configuration was promoted after
+  seeing its test result (run #5);
 - the unanswerable set was committed about four minutes after the first loop run started;
 - the original spec-v2 loop run survives only in console output.
 
-**Post-test improvement, not test-evaluated** (§11). A later train-only loop run (run 4)
-accepted `configs/candidate_v4.yaml`: generic-term removal plus controlled query expansion for
-the ranking query. On train, F1@5 rose from 0.1306 to 0.1743 and recall@5 from 0.6174 to
-0.8095, with abstention unchanged (3/140 false, 28/28 correct), and demo group A went from 4/10
-to 8/10. A single-change ablation (§11.7) confirms that the gain comes from combining both
-changes. This candidate has **not** been evaluated on the test split; every test number in this
-report refers to `configs/final.yaml`.
+**Query refinement, now final** (§11, §14). A later train-only loop run (run 4) accepted
+`configs/candidate_v4.yaml`: generic-term removal plus controlled query expansion for the ranking
+query. On train, F1@5 rose from 0.1306 to 0.1743 and recall@5 from 0.6174 to 0.8095, with
+abstention unchanged (3/140 false, 28/28 correct), and demo group A went from 4/10 to 8/10. A
+single-change ablation (§11.7) confirms that the gain comes from combining both changes. On test
+(run #5) it also beat the previous final on every retrieval metric, and it was promoted to
+`configs/final.yaml` on 2026-11-06 (§14).
 
 ## 2. System design
 
@@ -601,6 +618,8 @@ The root causes and the run-4 changes are in §11.
 | 2 | 15:34:05 | `overlap_up` (final) | `3254f317…` | after the final-selection commit `b4dbca3` (15:33:54) |
 | 3 | 15:34:27 | `baseline` | `c41401f0…` | baseline comparison |
 
+Runs #4–#9 (2026-11-06) are listed and discussed in §14.1.
+
 **What run #1 revealed.** Its config is the baseline plus a key that only appeared in later code
 versions, and its retrieval and abstention results equal run #3's at every k *(re-checked)*. So
 it revealed only baseline test performance, and nothing about any candidate.
@@ -666,8 +685,9 @@ in the author's working tree.
   the new key gives `3254f317b4c41e2c`, the tested configuration.
 
 Loop run 4 and `configs/candidate_v4.yaml` (§11) were also produced after the test evaluations,
-on train only. Unlike `require_contract`, they change ranking for benchmark queries, so the test
-results in this report do **not** apply to `candidate_v4`.
+on train only. Unlike `require_contract`, they change ranking for benchmark queries, so the
+test results of runs #2/#3 do **not** apply to `candidate_v4`; its own test result is run #5
+(§14).
 
 ### 10.6 Provenance
 
@@ -1181,3 +1201,369 @@ under the same protocol.
 **Tests.** `python -m pytest -q` gives **130 passed, 1 xfailed** (29 new tests in
 `tests/test_rerank.py`, using mocked scorers plus one optional real-model smoke test). The xfail
 is still the BicycleTX case.
+
+## 13. Train-only investigation: why reranking regressed, alternative rerankers, evidence verification
+
+Written after all runs below completed. Train split only (140 answerable / 28 unanswerable).
+**No test-split evaluation was run** (`artifacts/test_runs.jsonl` still has 3 entries).
+`configs/final.yaml` and `configs/candidate_v4.yaml` were not modified, and no configuration was
+promoted. Labels used below: **[measured]** = from an artifact; **[hypothesis]** = not
+measured; **[post-hoc]** = designed after the relevant train results were seen.
+
+### 13.1 Why the demo check fell from 8/10 to 6/10 with the MiniLM reranker [measured]
+
+Diagnostics re-ran the 10 answerable and 4 unanswerable demo queries, capturing the full BM25
+chunk order and every cross-encoder (CE) score. No code was changed for this.
+
+| Demo query (question type) | Gold chunk BM25 rank | Gold CE score | Gold rank after rerank | Demo B → C |
+|---|---|---|---|---|
+| expiration date | 1, 2 | 1.43 | 1 | pass → pass |
+| governing law | 1 | 0.70 | 1 | pass → pass |
+| cap on liability | 1, 2 | −3.63 | 1 | pass → pass |
+| **Bon-Ton, anti-assignment** | 1, 2 | −5.53, −5.46 | 10, 9 | **pass → FAIL** |
+| licences granted | 1, 2 | −4.67, −0.65 | 4, 1 | pass → pass |
+| **Sucampo, audit rights** | 1, 2, 9 | −7.32 | 6 | **pass → FAIL** |
+| Tate & Lyle, exceptions to competition | 1, 4 | −8.40, −6.75 | 12, 5 | pass → pass (only via its rank-4 chunk) |
+| Theravance, termination for convenience | 6, 8 | −6.68 | 10 | fail → fail |
+| Depomed, exclusivity | 1 | −8.02 | 4 | pass → pass |
+| BicycleTX, IP ownership | 1, 6 | −5.05, −3.98 | 5, 2 | fail (abstained) → fail (abstained) |
+
+- **Cause.** The two new failures are pure ranking regressions. In both, the gold chunk was BM25
+  rank 1–2 and in the pool, and the CE moved it to rank 6–10. Top-k selection only takes the new
+  top 5; the selection code is not at fault. The unanswerable demo queries stay abstained,
+  because abstention never uses the CE (§12.4).
+- **What was promoted above gold:**
+  - **Bon-Ton.** Eight bankruptcy lease-designation passages ("assignees of the Leases",
+    "assumption and assignment of a Lease"): the same topic (assignment), a different legal
+    meaning (court-approved assignment of leases, not a restriction on assigning the agreement).
+  - **Sucampo.** Lien and covenant boilerplate, a securities-report reference and a publicity
+    clause, none about audit or records access.
+  - **Theravance.** "No variation or agreed termination", the definitions/interpretation clause,
+    and an immediate-termination-for-cause clause. These share "terminate" without answering
+    "termination for convenience".
+  - **Tate & Lyle.** Termination conditions and a "nothing … shall require" clause; the general
+    restriction and its exception are not distinguished.
+  - **Depomed.** "'or' is disjunctive but not necessarily exclusive" and other interpretation
+    boilerplate. The literal word "exclusive" dominates.
+  - **Passport question (`unans-025`).** The CE's top passage is the cover page naming Nigel
+    Crockett: an entity match, not evidence.
+- **Reading.** The model scores topical and lexical-entity similarity, not whether a passage
+  answers the question. Gold texts get strongly negative logits in most cases.
+
+### 13.2 Implementation audit [measured]
+
+| Check | Finding |
+|---|---|
+| Query given to the CE | the question without the contract preamble; **no** expansion terms (expansion is for BM25 only) |
+| Passage text | the whole chunk (≤ 1,000 characters, exact source text); no title or metadata. Routing has already fixed the contract |
+| Truncation | 7 of 2,027 chunks exceed 500 tokens (max 805, median 183, p99 373), so truncation at 512 is negligible |
+| Gold dilution | gold covers on median **31%** of a gold-overlapping chunk, so the CE scores mostly non-gold text. This is inherent to 1,000-character chunks, not a bug |
+| Scores | raw logits, sorted descending, ties broken by BM25 rank; no normalisation needed for ordering |
+| Ordering / selection | verified by tests: reranking reorders the top `candidate_k` only; tail order, ids, offsets, text and BM25 scores are preserved; recall@64 is unchanged |
+| Discarded passages | none: the candidate set is identical (R@64 0.9517 in B, C, 6b, D) |
+
+**No implementation bug was found.**
+
+### 13.3 Candidate pool [measured]
+
+The rank of the first gold-overlapping chunk in the BM25 order (`candidate_v4`), over 140 train
+queries:
+
+| Gold chunk within BM25 top | 1 | 5 | 10 | 20 | 50 | 100 |
+|---|---:|---:|---:|---:|---:|---:|
+| queries | 93 | 124 | 129 | 133 | 135 | 136 |
+
+Pool sizes vary: the median query has only 27.5 candidates with BM25 > 0, and the maximum is 277.
+The first stage is not the bottleneck. BM25 already puts gold at rank 1 for two thirds of the
+queries, and enlarging the pool beyond 20 adds only 3 queries. The CE scores of the top 100 for
+every train query were cached and replayed exactly through the evaluation code (the replay
+reproduces the real exp 6 and 6b runs to four decimals):
+
+| `candidate_k` | P@1 | R@1 | F1@5 | R@5 | R@16 |
+|---|---:|---:|---:|---:|---:|
+| B (no rerank) | **0.2464** | **0.5508** | **0.1743** | **0.8095** | **0.9186** |
+| 10 | 0.1991 | 0.4430 | 0.1553 | 0.7514 | 0.9186 |
+| 20 | 0.1874 | 0.4259 | 0.1442 | 0.7102 | 0.9117 |
+| 50 | 0.1874 | 0.4259 | 0.1419 | 0.7050 | 0.9001 |
+| 100 | 0.1874 | 0.4259 | 0.1412 | 0.7036 | 0.8960 |
+
+Smaller pools hurt less only because the CE can move fewer chunks. No pool size helps, so the
+pool size was not changed.
+
+### 13.4 Alternative rerankers
+
+| Model | Domain / training | Size | Licence | Usable here? |
+|---|---|---|---|---|
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` (C) | MS MARCO web search | 22.7M params, 87 MB | Apache-2.0 (MS MARCO data: non-commercial terms) | evaluated, rejected |
+| `Alibaba-NLP/gte-reranker-modernbert-base` (D) | general text reranking (GTE recipe, ModernBERT); strong small-model BEIR/LoCo scores per its card | 149.6M params, 571 MB | Apache-2.0 | **evaluated**: strongest compact permissive general reranker found |
+| `lxyuan/LegalBenchRAG-Ettin-150M-Reranker` | fine-tuned on the **full LegalBench-RAG** (incl. 4,042 CUAD questions), split by document | ~150M | Apache-2.0 | **excluded**: its training split is not published, so our 29 contracts and their queries (train *and* test) were very likely in its training data; any score here would be contaminated |
+| `BAAI/bge-reranker-v2-m3`, `Qwen3-Reranker-0.6B`, `mxbai-rerank` v2 | general multilingual / LLM-based | 0.5–0.6B+ | Apache-2.0 or MIT (per secondary sources) | not run: 4× the size of D, and D already regressed |
+| Jina reranker v2/v3, zerank-2 | general | — | CC-BY-NC-4.0 | excluded (non-commercial) |
+| Cohere / Voyage rerank | general (API) | — | paid API | not run; the LegalBench-RAG paper reports Cohere rerank **below** no reranking |
+
+No usable legal-domain cross-encoder was found. The one legal model is contaminated for this
+benchmark, and ContractNLI fine-tunes cover only NDA hypotheses.
+
+**D results [measured]** (`artifacts/eval/exp7_D_gte_reranker_train/`, top 50, same settings as C):
+
+| Metric | B | C (MiniLM) | D (gte) |
+|---|---:|---:|---:|
+| P@1 / R@1 / F1@1 | **0.2464 / 0.5508 / 0.3108** | 0.1874 / 0.4259 / 0.2371 | 0.2196 / 0.4534 / 0.2649 |
+| P@2 / R@2 / F1@2 | **0.1827 / 0.6524 / 0.2636** | 0.1370 / 0.5463 / 0.2016 | 0.1540 / 0.5677 / 0.2220 |
+| P@5 / R@5 / F1@5 | **0.1049 / 0.8095 / 0.1743** | 0.0841 / 0.7050 / 0.1419 | 0.0971 / 0.7389 / 0.1619 |
+| R@10 (top-10 recompute) | **0.8805** | 0.8248 | 0.8371 |
+| abstention (FA / CA / BA) | 3/140 · 28/28 · 0.989 | same | same |
+| mean query latency | 0.0008 s | 1.02 s | **7.20 s** |
+| peak memory | 55 MiB | 945 MiB | 1,440 MiB |
+
+D is better than C but still below BM25 on every metric. On the six audited cases it keeps
+Bon-Ton, Sucampo and Tate & Lyle at rank 1, drops Depomed to 8 and Theravance out of the top 10.
+**Rejected.** A legal-domain reranker might do better [hypothesis]; none is available
+uncontaminated.
+
+### 13.5 Evidence-support verification: approaches compared
+
+| | A. NLI (e.g. DeBERTa-v3 MNLI, 70–440M) | B. Local instruct LLM (Qwen3-1.7B Q8 GGUF) | C. External LLM API |
+|---|---|---|---|
+| Semantic understanding | sentence-pair entailment; contract passages and question-shaped hypotheses are out of distribution | reads question and passages jointly; can follow "quote the evidence" | strongest [hypothesis] |
+| Evidence grounding | none built in (label only) | verbatim quotes, mechanically checked against the source | same quote check applies |
+| Question → hypothesis | **required**: either per-question-type templates (hand-written, tunable on train) or a generator | not needed | not needed |
+| CPU / RAM | low (0.3–1.7 GB) | 1.83 GB model, 2.5 GB peak RSS | none locally |
+| Latency (this CPU) | ~0.1–1 s [hypothesis] | **26.5 s / query** (5 passages, ~1,240 prompt tokens) [measured] | network-bound, ~1–5 s [hypothesis] |
+| Cost | free | free | per-token fees |
+| Privacy | local | local | contract text leaves the machine |
+| Reproducibility | deterministic | greedy decoding + seed + response cache; reproducible on this build | provider models change without notice |
+| Deployment | easy | heavy for free CPU hosting | needs API key handling; optional at most |
+
+**Chosen for implementation: B (local LLM).** It is the only option that is free, private and
+grounded without hand-written hypothesis templates. NLI was not implemented, because converting
+CUAD questions into hypotheses would mean new hand-written, train-tuned rules. The API option was
+not implemented: it is costly, sends contract text off the machine, and is not reproducible.
+
+### 13.6 Verifier implementation (`src/verify.py`, optional extra `verify`)
+
+- **Input.** The model sees the full query and the top 5 retrieved passages, verbatim, as
+  `<excerpt id="P1..P5">`. It must return JSON with
+  `decision ∈ {supported, ambiguous, insufficient}` and verbatim quotes.
+- **Output is never trusted as-is.** Malformed JSON, an unknown decision, a fabricated passage id,
+  a quote that is not a verbatim (whitespace-insensitive) substring of the cited passage, or
+  "supported" without a quote all become `invalid`.
+- **Fail-closed.** Failures and timeouts become `error`. Only `supported` can lead to an answer;
+  `ambiguous` abstains by default.
+- **Traceable evidence.** Valid quotes are mapped to exact source offsets.
+- **Prompt injection.** Passages are treated as untrusted. Tag text inside passages is
+  neutralised in the prompt, and the quote check prevents injected text from creating support.
+- **Not a probability.** No confidence is requested or used.
+- **Reproducibility.** Greedy decoding, seed 0, and raw outputs cached by a hash of
+  (prompt version, model, settings, prompt). The prompt (`PROMPT_VERSION = "v1"`) was written once
+  before the run and not revised after seeing outputs.
+- **Modes**, combined with the unchanged BM25 decision:
+
+  | Mode | Answer iff |
+  |---|---|
+  | `gate` | BM25 answers **and** the verifier supports |
+  | `replace` | the query has candidates **and** the verifier supports |
+  | `rescue` [post-hoc] | BM25 answers **or** the verifier supports |
+
+  Ranking and retrieval metrics are never changed by the verifier.
+
+### 13.7 Verifier results [measured]
+
+`artifacts/eval/exp8_E_verifier_gate_train/`, `exp8b_E_verifier_replace_train/` and
+`exp8c_E_verifier_rescue_posthoc_train/`. One generation pass covered 153 queries (those with
+candidates); 8b and 8c replay the same cached outputs. Retrieval metrics are identical to B by
+construction.
+
+| Abstention (train) | B | E gate | E replace | E rescue [post-hoc] |
+|---|---:|---:|---:|---:|
+| false abstentions | 3/140 | 88/140 | 87/140 | **2/140** |
+| correct abstentions | 28/28 | 28/28 | 28/28 | 28/28 |
+| failures to abstain | 0/28 | 0/28 | 0/28 | 0/28 |
+| balanced accuracy | 0.989 | 0.686 | 0.689 | **0.993** |
+| answer precision | 1.000 | 1.000 | 1.000 | 1.000 |
+| answer recall | 0.979 | 0.371 | 0.379 | 0.986 |
+| confusion (ans-answered / ans-abst / unans-answered / unans-abst) | 137/3/0/28 | 52/88/0/28 | 53/87/0/28 | 138/2/0/28 |
+| demo A / B / C | 8/10 · 4/4 · 14/14 | not run | not run | 9/10 · 4/4 · 14/14 |
+
+**Verifier decisions.** Over the 153 queries: 53 supported, 89 insufficient, 11 invalid,
+0 ambiguous, 0 errors.
+- **Too strict.** Of the 124 answerable queries whose gold was in the top 5, the verifier said
+  "insufficient" for 63.
+- **Invalid outputs.** 11 were invalid because the quote was paraphrased rather than copied
+  verbatim. The check worked as designed and failed closed.
+- **Quote quality.** Of the 53 supported answerable queries, 37 quotes overlap gold.
+- **Negatives.** All 13 negatives with candidates were judged "insufficient".
+- **Literal reading.** It is too literal in the same way as BM25. For Theravance it answered
+  "none of the excerpts explicitly mention termination for convenience".
+
+**BicycleTX (E1) vs `unans-025` [measured].** The verifier separates the pair, which no lexical or
+CE signal did:
+- E1 is "supported", quoting "All IPRs subsisting in any Works shall be the exclusive property of
+  the Company."
+- The passport query is "insufficient", because no excerpt contains the details.
+
+So E1 is an **abstention** problem, not a ranking problem: gold is at rank 1. Rescue mode answers
+E1 and nothing else changes.
+
+**Operational [measured].**
+
+| Item | Value |
+|---|---|
+| model file | 1,834,426,016 bytes |
+| first load incl. download | 928 s (about 2 MB/s); cached load 0.6 s |
+| mean generation | 26.5 s per verified query |
+| peak RSS | 2.5 GiB |
+| full train pass | about 68 min on the i5-10400 (6 cores, AVX2, no BF16) |
+| API cost | 0 |
+
+### 13.8 Decision and recommendations
+
+- **Rerankers C (MiniLM) and D (gte): rejected [measured].** Both are worse than BM25 at every
+  k ≤ 10, and no pool size helps. The reranker code stays, off by default.
+- **F (reranker + verifier): not run.** Its prerequisite, a reranker that helps on its own, was
+  not met.
+- **Verifier gate/replace: rejected [measured].** Precision is perfect but recall is too low
+  (0.37–0.38).
+- **Verifier rescue: promising but NOT promoted [post-hoc].**
+  - Fixes the one known false abstention (BicycleTX) with no new failure to abstain.
+  - The evidence is thin: the mode was chosen after seeing train results, and only 3 BM25 false
+    abstentions and 13 negatives with candidates exercise it.
+  - In interactive search it runs only when BM25 abstains with candidates (16/168 train
+    queries), so the extra latency (about 26 s on this CPU) affects only those queries.
+  - Before any promotion it needs a pre-registered evaluation on new data: a fresh, frozen set of
+    unanswerable queries written before running it, especially near-miss negatives about real
+    contracts like `unans-025`.
+- **`configs/candidate_v4.yaml` remains the best measured train configuration;
+  `configs/final.yaml` remains the tested one.** Neither was changed. *(Superseded on
+  2026-11-06: `candidate_v4` was test-evaluated and promoted to `configs/final.yaml`, §14.)*
+- **Future [hypothesis].**
+  - A larger local model (4–8B) or an API backend may reduce the verifier's strictness.
+  - Sentence-window scoring (instead of 1,000-character chunks) may help any reranker, given the
+    31% gold dilution.
+  - An uncontaminated legal-domain reranker is the only reranking direction still worth testing.
+
+**Reproduce:**
+```bash
+uv sync --extra dense --extra verify
+python -m pytest -q                                   # 166 passed, 1 xfailed
+python -m src.cli validate-data
+python -m src.cli evaluate --config configs/experiments/exp7_gte_reranker.yaml --out artifacts/eval/<new>_D
+python -m src.cli evaluate --config configs/experiments/exp8_verifier_gate.yaml --out artifacts/eval/<new>_E_gate
+python -m src.cli evaluate --config configs/experiments/exp8b_verifier_replace.yaml --out artifacts/eval/<new>_E_replace
+python -m src.cli evaluate --config configs/experiments/exp8c_verifier_rescue.yaml --out artifacts/eval/<new>_E_rescue
+python -m src.cli compare artifacts/eval/exp6_A_final_train artifacts/eval/exp6_B_candidate_v4_train \
+  artifacts/eval/exp6_C_cross_encoder_train artifacts/eval/exp7_D_gte_reranker_train \
+  artifacts/eval/exp8_E_verifier_gate_train artifacts/eval/exp8b_E_verifier_replace_train \
+  artifacts/eval/exp8c_E_verifier_rescue_posthoc_train \
+  --qids cuad-51b4e44436 cuad-0f789ebcf3 cuad-05251665f3 cuad-3fdb534e55 cuad-5fce387d80 cuad-7646cba011 unans-025
+python -m src.cli demo-check --config configs/experiments/exp8c_verifier_rescue.yaml
+```
+The verifier cache lives under `artifacts/cache/verifier/` (gitignored). Without it, the E runs
+regenerate, taking about 70 minutes on this CPU.
+
+## 14. Test-split comparison and promotion of `candidate_v4` to final (2026-11-06)
+
+`configs/candidate_v4.yaml` was evaluated on the held-out test split together with the previous
+final configuration and the three experimental second stages, and was then promoted to
+`configs/final.yaml`. No code, threshold or setting was changed in response to any test result:
+the promoted file has exactly the settings that were tested (§14.5).
+
+### 14.1 Test runs #4–#9
+
+`artifacts/test_runs.jsonl`; all on the same 54 answerable / 7 unanswerable test queries, with the
+train-calibrated threshold 0.2739 taken from the config (never re-calibrated on test):
+
+| # | Time (IST, 2026-11-06) | Config | Fingerprint | Output (`artifacts/eval/`) | Purpose |
+|---|---|---|---|---|---|
+| 4 | 10:54:52 | `overlap_up` (previous final) | `e1c913da…` | `overlap_up_test_20261106-105452` | reproduction check of run #2 |
+| 5 | 11:14:53 | `candidate_v4` | `8f6d2afd…` | `cmp_test_B_candidate_v4` | test result of the train-selected candidate |
+| 6 | 11:48:52 | `exp8c_verifier_rescue` | `322943cf…` | `cmp_test_C_verifier_rescue` | reporting run, experiment not promoted on train |
+| 7 | 12:20:22 | `exp6_cross_encoder` (MiniLM) | `1b09d5dc…` | `cmp_test_C_cross_encoder` | reporting run, rejected on train (§12) |
+| 8 | 12:29:23 | `exp7_gte_reranker` | `0db19cf6…` | `cmp_test_D_gte_reranker` | reporting run, rejected on train (§13) |
+| 9 | 12:45:31 | `final_v4` (promoted `configs/final.yaml`) | `8f6d2afd…` | `final_v4_test` | confirmation of the promoted file: top-1 changed on 0/61 queries, all metrics identical to #5 |
+
+**Run #4 reproduces run #2 exactly:** top-1 passage changed on 0/61 queries and every metric is
+identical. Its fingerprint differs from run #2's (`3254f317…`) only because the config loader
+now fills in defaults for keys added later (`require_contract`, `refine`, …) that do not change
+results for these queries (§10.5).
+
+### 14.2 Results (test)
+
+Sources: `metrics.json` in each output directory; side-by-side tables in
+`artifacts/eval/cmp_test_comparison.json` and `artifacts/eval/cmp3_test.json`.
+
+| Test metric | Previous final | **`candidate_v4`** | + MiniLM reranker | + gte reranker | + verifier rescue |
+|---|---:|---:|---:|---:|---:|
+| precision@1 | 0.1788 | **0.2638** | 0.1798 | 0.1869 | 0.2638 |
+| recall@1 | 0.4328 | **0.5880** | 0.4373 | 0.4270 | 0.5880 |
+| precision@5 | 0.0947 | **0.1011** | 0.0975 | 0.0910 | 0.1011 |
+| recall@5 | 0.7144 | **0.7821** | 0.7207 | 0.6855 | 0.7821 |
+| F1@5 | 0.1514 | **0.1607** | 0.1535 | 0.1431 | 0.1607 |
+| recall@10 (recomputed) | 0.7580 | 0.8170 | 0.8199 | **0.8291** | 0.8170 |
+| false / correct abstentions | 1/54 · 7/7 | 1/54 · 7/7 | 1/54 · 7/7 | 1/54 · 7/7 | 1/54 · 7/7 |
+| mean time per query | 0.0006 s | 0.0007 s | 0.67 s | 8.86 s | 31.6 s per verified query |
+| peak memory | 55 MB | 55 MB | 871 MB | 1.4 GB | 2.5 GB |
+
+
+The train-split comparison of the same configs (`artifacts/eval/cmp3_train.json`, §12–§13) points
+the same way: `candidate_v4` F1@5 0.1743 vs 0.1419 (MiniLM) and 0.1619 (gte).
+
+### 14.3 Per-query reading (test)
+
+- **`candidate_v4` vs previous final (recall@5):** 7 better, 3 worse, 44 unchanged. The three
+  regressions are `cuad-278b8ff2d7` (minimum commitment, 0.64 → 0.40), `cuad-acff5fc189`
+  (licenses granted, 0.78 → 0.70) and `cuad-bfb849cbfd` (post-termination services, 1.00 → 0.76).
+- **Remaining misses:** 9/54 answerable test queries have recall@5 = 0 under `candidate_v4`:
+  post-termination services (×2), exclusivity, non-compete, covenant not to sue, expiration
+  date, volume restrictions, anti-assignment and right of first refusal. Almost all are
+  clause-presence questions whose clause text does not share the question's vocabulary.
+- **Rerankers vs `candidate_v4`:** MiniLM recall@1 better on 4 / worse on 16, recall@5 better on
+  3 / worse on 9, and it fixes 0 of the 9 misses; gte recall@1 better on 8 / worse on 20,
+  recall@5 better on 6 / worse on 12, fixes 2 of the 9. The small recall@10 gain comes from
+  pulling passages from deep in the top-50 pool into ranks 6–10, below what the user sees.
+- **Verifier rescue:** identical to `candidate_v4` on every metric. The only false abstention
+  (`cuad-be34fdefc9`, Depomed right of first refusal, signal 0.256) was judged "insufficient", so
+  nothing was rescued. Over the 57 verified queries it said "supported" on 27 answerable,
+  "insufficient" on 25 answerable (24 of which BM25 answered correctly), "invalid" on 2, and
+  "insufficient" on all 3 negatives it saw. The other 4 negatives abstain earlier with
+  `contract_not_identified`. The 9/10 demo result (§13.7) did not carry over to test.
+
+### 14.4 Protocol caveats
+
+- **Test reuse.** The test split has been evaluated nine times. The promotion decision was made
+  after seeing run #5, so the final configuration's test numbers are **not a fully blind
+  estimate**. Mitigations: `candidate_v4` was selected on train before run #5 (§11); its test
+  gain matches the train gain in direction; nothing was tuned after any test run; runs #6–#8
+  concern experiments already rejected or not promoted on train and drove no decision; run #9
+  only re-ran the promoted file and reproduced #5.
+- **Few negatives.** Only 7 unanswerable test queries; 4 of them abstain through contract
+  identification, so only 3 exercise the score threshold. 7/7 is weak evidence.
+- **Small differences.** With 54 answerable queries, changes of one or two queries are within
+  noise; the recall@1 gain (+0.155) is the robust part of the result.
+- **Any future change** should be developed on train and evaluated on new data, since this test
+  split is no longer clean.
+
+### 14.5 Promotion
+
+- `configs/final.yaml` now holds the `candidate_v4` settings with `name: final_v4`,
+  `status: final`. `name` and `status` are excluded from the fingerprint, so its fingerprint is
+  `8f6d2afd50a4819e`, identical to run #5. This is enforced by
+  `tests/test_end_to_end.py::test_promoted_final_config_matches_tested_candidate_v4`.
+- The previous final is archived unchanged (except `status: archived` and a header comment) at
+  `configs/archive/final_overlap_up.yaml`; its fingerprint is still `e1c913daee266b6c` (run #4).
+- `configs/candidate_v4.yaml` is kept, with identical settings, because the experiment configs
+  and earlier commands reference it.
+- The CLI default (`src/cli.py`) and the app default (`app.py`, `CIA_CONFIG`) are
+  `configs/final.yaml`, so both now use the promoted configuration. Demo check with the new
+  final: A 8/10, B 4/4, C 14/14. Tests: 167 passed, 1 xfailed (BicycleTX, a train query, §11.8).
+- The reranker and the verifier stay off in every non-experiment config.
+
+**Reproduce (no new test run needed):**
+```bash
+python -m pytest -q                                   # 167 passed, 1 xfailed
+python -m src.cli demo-check                          # final: A 8/10, B 4/4, C 14/14
+python -m src.cli compare artifacts/eval/overlap_up_test_20261102-153405 \
+  artifacts/eval/overlap_up_test_20261106-105452 artifacts/eval/cmp_test_B_candidate_v4 \
+  artifacts/eval/cmp_test_C_cross_encoder artifacts/eval/cmp_test_D_gte_reranker \
+  artifacts/eval/cmp_test_C_verifier_rescue
+```

@@ -391,3 +391,37 @@ def test_real_cross_encoder_smoke(tiny):
     scores = [p.rerank_score for p in out.passages]
     assert scores == sorted(scores, reverse=True)
     assert all(ds.documents[p.document_id][p.start_offset:p.end_offset] == p.text for p in out.passages)
+
+
+def test_gold_outside_candidate_pool_keeps_bm25_position(tiny):
+    """A chunk beyond candidate_k is never scored and keeps its BM25 position after the head."""
+    cfg, ds = tiny
+    cfg = apply_overrides(cfg, {"retrieval.overlap_policy": "keep"})
+    base = Pipeline(cfg, ds.documents).retrieve(Q_INS, 16).passages
+    s = ReverseScorer()
+    out = Pipeline(_on(cfg, candidate_k=2), ds.documents, reranker_scorer=s).retrieve(Q_INS, 16).passages
+    assert len(s.calls[0][1]) == 2
+    assert [p.chunk_id for p in out[:2]] == [base[1].chunk_id, base[0].chunk_id]
+    assert [p.chunk_id for p in out[2:]] == [p.chunk_id for p in base[2:]]
+    assert all(p.rerank_score is None for p in out[2:])  # never scored
+    assert [p.bm25_rank for p in out[2:]] == list(range(3, len(out) + 1))  # BM25 position recorded
+
+
+def test_long_passage_truncation_limit_is_passed_to_model(monkeypatch, tiny):
+    """Pairs longer than reranker.max_length tokens are truncated by the model, never by us."""
+    cfg, ds = tiny
+    created = _fake_st(monkeypatch)
+    long_text = "word " * 5000
+    out = CrossEncoderScorer("x", max_length=128).score("q", [long_text], 1)
+    assert created[0][1]["max_length"] == 128 and len(out) == 1
+    pipe = Pipeline(_on(cfg, max_length=64), ds.documents)
+    pipe.retrieve(Q_INS, 3)
+    assert created[1][1]["max_length"] == 64
+
+
+def test_unanswerable_query_abstains_with_reranker(tiny):
+    cfg, ds = tiny
+    r = Pipeline(_on(cfg), ds.documents, reranker_scorer=KeywordScorer("agreement")).search(
+        "What does the agreement say about quintessor obligations?", 5)
+    base = Pipeline(cfg, ds.documents).search("What does the agreement say about quintessor obligations?", 5)
+    assert r.abstained == base.abstained and r.signal_value == base.signal_value
