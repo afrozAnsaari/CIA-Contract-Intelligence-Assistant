@@ -1,0 +1,16 @@
+# Render Blueprint for the Streamlit app (free tier). The same settings can be entered by hand
+# in the Render dashboard instead; see "Deployment (Render)" in README.md.
+services:
+  - type: web
+    name: cia-contract-intelligence
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    healthCheckPath: /_stcore/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: CIA_CONFIG
+        value: configs/final.yaml

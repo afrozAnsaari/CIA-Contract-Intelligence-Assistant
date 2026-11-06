@@ -1,0 +1,14 @@
+This repository is a byte-exact copy of the LegalBench-RAG data export. It has no single license.
+Each part keeps the license of its source. Follow the terms of every source you use.
+
+Source                     License (as found on the upstream project pages)
+-------------------------  --------------------------------------------------------------
+LegalBench-RAG (queries)   MIT (github.com/zeroentropy-ai/legalbenchrag)
+PrivacyQA                  MIT
+ContractNLI                CC BY 4.0
+CUAD v1                    CC BY 4.0 (Zenodo record 4595826)
+MAUD                       Not stated in the MAUD repository. Not verified.
+
+The upstream LegalBench-RAG README asks users to accept the usage policies of ContractNLI,
+CUAD, MAUD and PrivacyQA. Contract and policy texts were filed publicly or published by their
+authors; their copyright stays with their owners.

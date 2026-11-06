@@ -7,7 +7,7 @@ __pycache__/
 *.egg-info/
 
 # Raw benchmark data (copied from the LegalBench-RAG download by `prepare-data`)
-data/raw/
+# data/raw/ is committed (29 CUAD contracts + cuad.json, ~6 MB, CC BY 4.0 / MIT) so the app can be deployed from git
 data/processed/
 
 # Generated artifacts: indexes, caches, bulky per-query outputs

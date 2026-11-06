@@ -86,7 +86,9 @@ uv sync --extra verify       # optional: llama.cpp for the evidence verifier (bu
 ```
 
 The alternative with pip is `pip install -r requirements.txt`. That file is exported from
-`uv.lock`, includes the optional dense extra, and points pip at the CPU PyTorch index.
+`uv.lock` and holds the runtime dependencies only (no optional extras, no dev tools), which is
+all the final configuration and the web app need. `requirements-all.txt` holds every extra and
+dev dependency and points pip at the CPU PyTorch index.
 
 **Environment variables:** none are required. `CIA_CONFIG` optionally selects the config used by
 the Streamlit app (default `configs/final.yaml`).
@@ -107,8 +109,11 @@ the Streamlit app (default `configs/final.yaml`).
    python -m src.cli validate-data
    ```
 
-Raw and processed data (`data/raw/`, `data/processed/`) are gitignored. The frozen unanswerable
-set, [`data/unanswerable_queries.json`](data/unanswerable_queries.json), is committed.
+The prepared raw data in `data/raw/legalbench-rag/` (`benchmarks/cuad.json` and the 29
+referenced CUAD contracts, about 6 MB) is committed so the app can be deployed straight from git;
+its licence terms are in [`data/raw/legalbench-rag/LICENSE`](data/raw/legalbench-rag/LICENSE).
+`data/processed/` is gitignored. The frozen unanswerable set,
+[`data/unanswerable_queries.json`](data/unanswerable_queries.json), is committed.
 
 `validate-data` prints a JSON report and ends with `VALIDATION OK`. The expected properties are:
 
@@ -173,6 +178,35 @@ evidence score and threshold, followed by ranked passages: rank, score, document
 contract abstains with reason `contract_not_identified` and lists the three closest contracts. If
 the contract is ambiguous, name it in the question or select it with `--document` (or with the
 sidebar *Contract* selector in the app).
+
+## Deployment (Render)
+
+The Streamlit app runs on Render's free tier: the final configuration is BM25-only, loads in
+about 1 s and uses about 55 MB of memory. The index is rebuilt in memory at startup, so no disk
+or database is needed.
+
+**Option A: Blueprint.** In the Render dashboard choose *New → Blueprint*, connect this
+repository, and Render reads [`render.yaml`](render.yaml).
+
+**Option B: manual web service.** Choose *New → Web Service*, connect the repository, and set:
+
+| Setting | Value |
+|---|---|
+| Language / runtime | Python 3 |
+| Branch | `main` |
+| Build command | `pip install -r requirements.txt` |
+| Start command | `streamlit run app.py --server.port $PORT --server.address 0.0.0.0` |
+| Instance type | Free |
+| Environment variable | `PYTHON_VERSION` = `3.13` |
+| Environment variable (optional) | `CIA_CONFIG` = `configs/final.yaml` |
+| Health check path (advanced) | `/_stcore/health` |
+
+Notes:
+- Free instances sleep after about 15 minutes without traffic; the first request after that
+  takes up to a minute while the service starts again.
+- The optional reranker and LLM verifier don't fit in the free tier's 512 MB and aren't
+  installed by `requirements.txt`; the final configuration doesn't use them.
+- Streamlit's server settings are in [`.streamlit/config.toml`](.streamlit/config.toml).
 
 ## CLI command reference
 
