@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from .chunking import PARA_RE, SENT_RE, Chunk, chunk_corpus
 from .config import index_fingerprint, resolve_path
 from .expansion import EXPANSION_FUNCTION_WORDS, expansion_phrases
+from .rerank import Reranker, Scorer, build_reranker
 from .text import GENERIC_LEGAL_TERMS, make_tokenizer, split_query, title_from_document_id, tokenize
 
 
@@ -68,11 +69,17 @@ class Passage:
     start_offset: int
     end_offset: int
     text: str
-    score: float
+    score: float  # first-stage score (BM25 for method bm25); never overwritten by the reranker
     chunk_id: int
+    rerank_score: float | None = None  # cross-encoder score (only when reranked)
+    bm25_rank: int | None = None  # 1-based first-stage rank of this chunk (only when reranking ran)
 
     def to_dict(self) -> dict:
-        return dict(self.__dict__)
+        d = dict(self.__dict__)
+        for k in ("rerank_score", "bm25_rank"):  # absent when reranking is off => unchanged output
+            if d[k] is None:
+                del d[k]
+        return d
 
 
 @dataclass
@@ -83,6 +90,7 @@ class RetrievalOutput:
     unresolved_contract: bool = False  # query names no contract and query.require_contract is on
     contract_candidates: list[str] = field(default_factory=list)  # suggestions when unresolved
     ranking_terms: dict[str, float] = field(default_factory=dict)  # debug: ranking term -> weight
+    timings: dict[str, float] = field(default_factory=dict)  # rerank_seconds, n_reranked (when reranking)
 
 
 class DenseEncoder:
@@ -112,7 +120,7 @@ def dense_available() -> bool:
 
 class Index:
     def __init__(self, cfg: dict, documents: dict[str, str], encoder: DenseEncoder | None = None,
-                 use_cache: bool = True):
+                 use_cache: bool = True, reranker_scorer: Scorer | None = None):
         self.cfg = cfg
         self.documents = documents
         rcfg = cfg["retrieval"]
@@ -133,6 +141,8 @@ class Index:
             dcfg = rcfg["dense"]
             self.encoder = encoder or DenseEncoder(dcfg["model_name"], dcfg["batch_size"])
             self.emb = self._load_or_encode([dcfg["passage_prefix"] + t for t in index_texts], use_cache)
+        # Second stage (lazy: the model loads on the first query that has candidates).
+        self.reranker: Reranker | None = build_reranker(cfg.get("reranker"), scorer=reranker_scorer)
 
     # -- indexing text (search-only; never returned) --------------------------
     def _index_text(self, c: Chunk) -> str:
@@ -261,11 +271,23 @@ class Index:
                 ranked = sorted(fused, key=lambda i: (-fused[i], i))
                 scores = fused
 
-        passages = self._select(ranked, scores, k)
+        # Stage 2 (optional): cross-encoder reorders the top candidates; scores/offsets untouched.
+        rr_scores: dict[int, float] = {}
+        bm_rank: dict[int, int] = {}
+        timings: dict[str, float] = {}
+        if self.reranker is not None and ranked:
+            rq = (question if preamble else query) if self.cfg["reranker"]["query_text"] == "question" else query
+            res = self.reranker.rerank(rq, ranked, lambda i: self.chunks[i].text)
+            ranked, rr_scores, bm_rank = res.order, res.scores, res.bm25_rank
+            signals["rerank_top_score"] = max(rr_scores.values())
+            timings = {"rerank_seconds": res.seconds, "n_reranked": float(res.n_reranked)}
+
+        passages = self._select(ranked, scores, k, rr_scores, bm_rank)
         if rcfg["refine"]["enabled"]:
             passages = [self._refine(p, rank_tokens, rank_weights) for p in passages]
         return RetrievalOutput(passages=passages, signals=signals, routed_documents=routed,
-                               ranking_terms={t: float(rank_weights.get(t, 1.0)) for t in rank_tokens})
+                               ranking_terms={t: float(rank_weights.get(t, 1.0)) for t in rank_tokens},
+                               timings=timings)
 
     # -- ranking query & passage refinement --------------------------------------------------
     def _ranking_terms(self, chunk_q: str, question: str) -> tuple[list[str], dict[str, float]]:
@@ -328,9 +350,11 @@ class Index:
         if best is None:
             return p
         _, a, b = best
-        return Passage(p.rank, p.document_id, a, b, text[a:b], p.score, p.chunk_id)
+        return replace(p, start_offset=a, end_offset=b, text=text[a:b])
 
-    def _select(self, ranked: list[int], scores: dict[int, float], k: int) -> list[Passage]:
+    def _select(self, ranked: list[int], scores: dict[int, float], k: int,
+                rerank_scores: dict[int, float] | None = None, bm25_rank: dict[int, int] | None = None
+                ) -> list[Passage]:
         """Take top-k applying the same-document overlap policy (keep | skip | trim)."""
         policy = self.cfg["retrieval"]["overlap_policy"]
         min_trim = int(self.cfg["retrieval"]["min_trimmed_chars"])
@@ -350,7 +374,8 @@ class Index:
                     continue
             text = self.documents[c.document_id][s:e]
             taken.setdefault(c.document_id, []).append((s, e))
-            out.append(Passage(len(out) + 1, c.document_id, s, e, text, scores[i], c.chunk_id))
+            out.append(Passage(len(out) + 1, c.document_id, s, e, text, scores[i], c.chunk_id,
+                               rerank_score=(rerank_scores or {}).get(i), bm25_rank=(bm25_rank or {}).get(i)))
         return out
 
 

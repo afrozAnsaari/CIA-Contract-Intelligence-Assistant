@@ -1,5 +1,6 @@
 # Candidate v4 = artifacts/loop/run4_v4/accepted_config.yaml (train-only loop, spec configs/loop_v4.yaml).
-# NOT evaluated on the held-out test split. configs/final.yaml (overlap_up) remains the tested config.
+# PROMOTED to configs/final.yaml on 2026-11-06 (REPORT.md §14); kept so experiment configs and
+# historical commands that reference it still work. Settings must stay identical to final.yaml.
 name: candidate_v4
 status: candidate
 data:

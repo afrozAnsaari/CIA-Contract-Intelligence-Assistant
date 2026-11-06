@@ -118,4 +118,10 @@ def abstention_metrics(answerable_abstained: list[bool], unanswerable_abstained:
         "failure_to_abstain_rate": (nu - ca) / nu if nu else None,
     }
     out["balanced_accuracy"] = (0.5 * ((1 - far) + car)) if na and nu else None
+    # Answerability view (positive class = "answer"): added keys only; the rates above are unchanged.
+    tp, fn, fp, tn = na - fa, fa, nu - ca, ca
+    out["confusion_matrix"] = {"answerable_answered": tp, "answerable_abstained": fn,
+                               "unanswerable_answered": fp, "unanswerable_abstained": tn}
+    out["answer_precision"] = tp / (tp + fp) if tp + fp else None  # answered queries that were answerable
+    out["answer_recall"] = tp / na if na else None  # = 1 - false_abstention_rate
     return out

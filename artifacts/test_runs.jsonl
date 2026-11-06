@@ -1,3 +1,9 @@
 {"run": 1, "config_name": "provisional", "config_fingerprint": "d64c5b4fdccee54c", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/provisional_test_20261102-144230", "timestamp": "2026-11-02T09:12:30+00:00"}
 {"run": 2, "config_name": "overlap_up", "config_fingerprint": "3254f317b4c41e2c", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/overlap_up_test_20261102-153405", "timestamp": "2026-11-02T10:04:05+00:00"}
 {"run": 3, "config_name": "baseline", "config_fingerprint": "c41401f0e5415a5b", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/baseline_test_20261102-153427", "timestamp": "2026-11-02T10:04:27+00:00"}
+{"run": 4, "config_name": "overlap_up", "config_fingerprint": "e1c913daee266b6c", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/overlap_up_test_20261106-105452", "timestamp": "2026-11-06T05:24:52+00:00"}
+{"run": 5, "config_name": "candidate_v4", "config_fingerprint": "8f6d2afd50a4819e", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/cmp_test_B_candidate_v4", "timestamp": "2026-11-06T05:44:53+00:00"}
+{"run": 6, "config_name": "exp8c_verifier_rescue", "config_fingerprint": "322943cfa6ffb439", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/cmp_test_C_verifier_rescue", "timestamp": "2026-11-06T06:18:52+00:00"}
+{"run": 7, "config_name": "exp6_cross_encoder", "config_fingerprint": "1b09d5dce1822a2a", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/cmp_test_C_cross_encoder", "timestamp": "2026-11-06T06:50:22+00:00"}
+{"run": 8, "config_name": "exp7_gte_reranker", "config_fingerprint": "0db19cf658ee2508", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/cmp_test_D_gte_reranker", "timestamp": "2026-11-06T06:59:23+00:00"}
+{"run": 9, "config_name": "final_v4", "config_fingerprint": "8f6d2afd50a4819e", "output": "/home/afrozdebian/coding/JioStar/CIA/artifacts/eval/final_v4_test", "timestamp": "2026-11-06T07:15:31+00:00"}

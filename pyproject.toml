@@ -17,6 +17,9 @@ dense = [
     "sentence-transformers>=3",
     "torch>=2.15.0",
 ]
+verify = [
+    "llama-cpp-python>=0.3.36",
+]
 
 [dependency-groups]
 dev = [

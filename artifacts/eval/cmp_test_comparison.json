@@ -1,0 +1,265 @@
+{
+  "runs": [
+    {
+      "name": "overlap_up_test_20261102-153405",
+      "config": "overlap_up",
+      "split": "test",
+      "retrieval": {
+        "precision@1": 0.1787965047638156,
+        "recall@1": 0.4328404777248488,
+        "f1@1": 0.21474179896866,
+        "precision@2": 0.14950557830145586,
+        "recall@2": 0.5615648722748979,
+        "f1@2": 0.20440797859889043,
+        "precision@5": 0.09468705997182532,
+        "recall@5": 0.7143768616093777,
+        "f1@5": 0.151399675601839
+      },
+      "recomputed": {
+        "precision@10": 0.05852934932728771,
+        "recall@10": 0.7579932337730872,
+        "f1@10": 0.10110499045171867
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 54,
+        "n_unanswerable": 7,
+        "false_abstentions": 1,
+        "false_abstention_rate": 0.018518518518518517,
+        "correct_abstentions": 7,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9907407407407407,
+        "answer_precision": 1.0,
+        "answer_recall": 0.9814814814814815
+      },
+      "threshold": null,
+      "offset_errors": 0,
+      "operational": null,
+      "n_answerable": 54
+    },
+    {
+      "name": "overlap_up_test_20261106-105452",
+      "config": "overlap_up",
+      "split": "test",
+      "retrieval": {
+        "precision@1": 0.1787965047638156,
+        "recall@1": 0.4328404777248488,
+        "f1@1": 0.21474179896866,
+        "precision@2": 0.14950557830145586,
+        "recall@2": 0.5615648722748979,
+        "f1@2": 0.20440797859889043,
+        "precision@5": 0.09468705997182532,
+        "recall@5": 0.7143768616093777,
+        "f1@5": 0.151399675601839
+      },
+      "recomputed": {
+        "precision@10": 0.05852934932728771,
+        "recall@10": 0.7579932337730872,
+        "f1@10": 0.10110499045171867
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 54,
+        "n_unanswerable": 7,
+        "false_abstentions": 1,
+        "false_abstention_rate": 0.018518518518518517,
+        "correct_abstentions": 7,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9907407407407407,
+        "confusion_matrix": {
+          "answerable_answered": 53,
+          "answerable_abstained": 1,
+          "unanswerable_answered": 0,
+          "unanswerable_abstained": 7
+        },
+        "answer_precision": 1.0,
+        "answer_recall": 0.9814814814814815
+      },
+      "threshold": null,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 61,
+        "index_build_seconds": 0.33579192500019417,
+        "mean_query_seconds": 0.0005904772130231665,
+        "total_query_seconds": 0.036019109994413157,
+        "n_reranked_queries": 0,
+        "mean_rerank_seconds": null,
+        "mean_candidates_reranked": null,
+        "reranker_model_load_seconds": null,
+        "reranker_n_parameters": null,
+        "peak_rss_mib": 55.2,
+        "n_verified_queries": 0,
+        "n_verifier_generated": 0,
+        "n_verifier_cached": 0,
+        "mean_verification_seconds": null,
+        "verifier_model_load_seconds": null,
+        "verifier_model_bytes": null,
+        "verifier_decisions": null,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 54
+    },
+    {
+      "name": "cmp_test_B_candidate_v4",
+      "config": "candidate_v4",
+      "split": "test",
+      "retrieval": {
+        "precision@1": 0.2638390997551295,
+        "recall@1": 0.5880362359348879,
+        "f1@1": 0.31733892929469515,
+        "precision@2": 0.1995690896462771,
+        "recall@2": 0.7206914701710961,
+        "f1@2": 0.2742591549232623,
+        "precision@5": 0.10105670326248911,
+        "recall@5": 0.7821015230525601,
+        "f1@5": 0.16067871028090613
+      },
+      "recomputed": {
+        "precision@10": 0.06227701629164944,
+        "recall@10": 0.8170401684678994,
+        "f1@10": 0.10816191566952266
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 54,
+        "n_unanswerable": 7,
+        "false_abstentions": 1,
+        "false_abstention_rate": 0.018518518518518517,
+        "correct_abstentions": 7,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9907407407407407,
+        "confusion_matrix": {
+          "answerable_answered": 53,
+          "answerable_abstained": 1,
+          "unanswerable_answered": 0,
+          "unanswerable_abstained": 7
+        },
+        "answer_precision": 1.0,
+        "answer_recall": 0.9814814814814815
+      },
+      "threshold": null,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 61,
+        "index_build_seconds": 0.34646106000036525,
+        "mean_query_seconds": 0.0006608340819318565,
+        "total_query_seconds": 0.04031087899784325,
+        "n_reranked_queries": 0,
+        "mean_rerank_seconds": null,
+        "mean_candidates_reranked": null,
+        "reranker_model_load_seconds": null,
+        "reranker_n_parameters": null,
+        "peak_rss_mib": 55.2,
+        "n_verified_queries": 0,
+        "n_verifier_generated": 0,
+        "n_verifier_cached": 0,
+        "mean_verification_seconds": null,
+        "verifier_model_load_seconds": null,
+        "verifier_model_bytes": null,
+        "verifier_decisions": null,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 54
+    },
+    {
+      "name": "cmp_test_C_verifier_rescue",
+      "config": "exp8c_verifier_rescue",
+      "split": "test",
+      "retrieval": {
+        "precision@1": 0.2638390997551295,
+        "recall@1": 0.5880362359348879,
+        "f1@1": 0.31733892929469515,
+        "precision@2": 0.1995690896462771,
+        "recall@2": 0.7206914701710961,
+        "f1@2": 0.2742591549232623,
+        "precision@5": 0.10105670326248911,
+        "recall@5": 0.7821015230525601,
+        "f1@5": 0.16067871028090613
+      },
+      "recomputed": {
+        "precision@10": 0.06227701629164944,
+        "recall@10": 0.8170401684678994,
+        "f1@10": 0.10816191566952266
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 54,
+        "n_unanswerable": 7,
+        "false_abstentions": 1,
+        "false_abstention_rate": 0.018518518518518517,
+        "correct_abstentions": 7,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9907407407407407,
+        "confusion_matrix": {
+          "answerable_answered": 53,
+          "answerable_abstained": 1,
+          "unanswerable_answered": 0,
+          "unanswerable_abstained": 7
+        },
+        "answer_precision": 1.0,
+        "answer_recall": 0.9814814814814815
+      },
+      "threshold": null,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 61,
+        "index_build_seconds": 0.3382214200000817,
+        "mean_query_seconds": 0.0009813310162662375,
+        "total_query_seconds": 0.05986119199224049,
+        "n_reranked_queries": 0,
+        "mean_rerank_seconds": null,
+        "mean_candidates_reranked": null,
+        "reranker_model_load_seconds": null,
+        "reranker_n_parameters": null,
+        "peak_rss_mib": 2571.4,
+        "n_verified_queries": 57,
+        "n_verifier_generated": 57,
+        "n_verifier_cached": 0,
+        "mean_verification_seconds": 31.566240577894924,
+        "verifier_model_load_seconds": 0.48356900599992514,
+        "verifier_model_bytes": 1834426016,
+        "verifier_decisions": {
+          "supported": 27,
+          "ambiguous": 0,
+          "insufficient": 28,
+          "invalid": 2,
+          "error": 0
+        },
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 54
+    }
+  ],
+  "cases": [],
+  "vs_first": [
+    {
+      "run": "overlap_up_test_20261106-105452",
+      "vs": "overlap_up_test_20261102-153405",
+      "n_common": 61,
+      "top1_passage_changed": 0,
+      "abstention_decision_changed": []
+    },
+    {
+      "run": "cmp_test_B_candidate_v4",
+      "vs": "overlap_up_test_20261102-153405",
+      "n_common": 61,
+      "top1_passage_changed": 27,
+      "abstention_decision_changed": []
+    },
+    {
+      "run": "cmp_test_C_verifier_rescue",
+      "vs": "overlap_up_test_20261102-153405",
+      "n_common": 61,
+      "top1_passage_changed": 27,
+      "abstention_decision_changed": []
+    }
+  ]
+}

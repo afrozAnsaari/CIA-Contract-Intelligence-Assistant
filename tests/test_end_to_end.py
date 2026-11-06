@@ -175,3 +175,16 @@ def test_real_bicycletx_ip_is_answered():
     r = p.search("Consider the Service Agreement between BicycleTX Ltd and Nigel Crockett for Chief Business "
                  "Officer Position; How is intellectual property ownership assigned in this contract?", 5)
     assert not r.abstained
+
+
+def test_promoted_final_config_matches_tested_candidate_v4():
+    """configs/final.yaml is candidate_v4 promoted (REPORT.md §14): same settings, so the same
+    fingerprint as test run #5; the archived overlap_up config keeps the fingerprint of run #4."""
+    from src.config import config_fingerprint, load_config
+    final, v4 = load_config("configs/final.yaml"), load_config("configs/candidate_v4.yaml")
+    assert final["status"] == "final"
+    assert config_fingerprint(final) == config_fingerprint(v4) == "8f6d2afd50a4819e"
+    assert final["reranker"]["enabled"] is False and final["verifier"]["enabled"] is False
+    archived = load_config("configs/archive/final_overlap_up.yaml")
+    assert archived["name"] == "overlap_up"
+    assert config_fingerprint(archived) == "e1c913daee266b6c"

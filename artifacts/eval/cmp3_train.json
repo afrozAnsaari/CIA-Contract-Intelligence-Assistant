@@ -1,0 +1,174 @@
+{
+  "runs": [
+    {
+      "name": "exp6_B_candidate_v4_train",
+      "config": "candidate_v4",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.24643430491384163,
+        "recall@1": 0.5508004068703231,
+        "f1@1": 0.31076538215445115,
+        "precision@2": 0.18269591044886027,
+        "recall@2": 0.6524247031327752,
+        "f1@2": 0.26361746118208856,
+        "precision@5": 0.10489694808360421,
+        "recall@5": 0.809531818657767,
+        "f1@5": 0.17430025013562017
+      },
+      "recomputed": {
+        "precision@10": 0.06385454542846403,
+        "recall@10": 0.8804997476023715,
+        "f1@10": 0.11460944064203114
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143,
+        "answer_precision": 1.0,
+        "answer_recall": 0.9785714285714285
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3923029299985501,
+        "mean_query_seconds": 0.0007702903392977792,
+        "total_query_seconds": 0.1294087770020269,
+        "n_reranked_queries": 0,
+        "mean_rerank_seconds": null,
+        "mean_candidates_reranked": null,
+        "reranker_model_load_seconds": null,
+        "reranker_n_parameters": null,
+        "peak_rss_mib": 55.3,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    },
+    {
+      "name": "exp6_C_cross_encoder_train",
+      "config": "exp6_cross_encoder",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.1873509391549124,
+        "recall@1": 0.4259372422531203,
+        "f1@1": 0.23713778064816232,
+        "precision@2": 0.13702161938148016,
+        "recall@2": 0.5463256774401624,
+        "f1@2": 0.20162907400479121,
+        "precision@5": 0.08412332968223456,
+        "recall@5": 0.7049627883358935,
+        "f1@5": 0.14188181876494202
+      },
+      "recomputed": {
+        "precision@10": 0.055564723735006205,
+        "recall@10": 0.824826409779203,
+        "f1@10": 0.1003882619271264
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143,
+        "answer_precision": 1.0,
+        "answer_recall": 0.9785714285714285
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3976834940003755,
+        "mean_query_seconds": 1.0240149564344414,
+        "total_query_seconds": 172.03451268098615,
+        "n_reranked_queries": 153,
+        "mean_rerank_seconds": 1.1228913864836858,
+        "mean_candidates_reranked": 29.856209150326798,
+        "reranker_model_load_seconds": 6.329483667001114,
+        "reranker_n_parameters": 22713601,
+        "peak_rss_mib": 944.6,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    },
+    {
+      "name": "exp7_D_gte_reranker_train",
+      "config": "exp7_gte_reranker",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.21960874112399825,
+        "recall@1": 0.45342800785698706,
+        "f1@1": 0.26491014523761913,
+        "precision@2": 0.15401662978852432,
+        "recall@2": 0.5677294560165353,
+        "f1@2": 0.22199000247910647,
+        "precision@5": 0.09708578029803698,
+        "recall@5": 0.7388750226551072,
+        "f1@5": 0.1619103565269994
+      },
+      "recomputed": {
+        "precision@10": 0.06090650579384153,
+        "recall@10": 0.8370789259551241,
+        "f1@10": 0.10916134456879877
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143,
+        "answer_precision": 1.0,
+        "answer_recall": 0.9785714285714285
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3673632509999152,
+        "mean_query_seconds": 7.203228241345122,
+        "total_query_seconds": 1210.1423445459804,
+        "n_reranked_queries": 153,
+        "mean_rerank_seconds": 7.907991509561862,
+        "mean_candidates_reranked": 29.856209150326798,
+        "reranker_model_load_seconds": 3.9770000759999675,
+        "reranker_n_parameters": 149605633,
+        "peak_rss_mib": 1439.9,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    }
+  ],
+  "cases": [],
+  "vs_first": [
+    {
+      "run": "exp6_C_cross_encoder_train",
+      "vs": "exp6_B_candidate_v4_train",
+      "n_common": 168,
+      "top1_passage_changed": 91,
+      "abstention_decision_changed": []
+    },
+    {
+      "run": "exp7_D_gte_reranker_train",
+      "vs": "exp6_B_candidate_v4_train",
+      "n_common": 168,
+      "top1_passage_changed": 98,
+      "abstention_decision_changed": []
+    }
+  ]
+}

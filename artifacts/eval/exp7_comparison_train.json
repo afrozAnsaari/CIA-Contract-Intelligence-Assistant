@@ -1,0 +1,385 @@
+{
+  "runs": [
+    {
+      "name": "exp6_B_candidate_v4_train",
+      "config": "candidate_v4",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.24643430491384163,
+        "recall@1": 0.5508004068703231,
+        "f1@1": 0.31076538215445115,
+        "precision@2": 0.18269591044886027,
+        "recall@2": 0.6524247031327752,
+        "f1@2": 0.26361746118208856,
+        "precision@5": 0.10489694808360421,
+        "recall@5": 0.809531818657767,
+        "f1@5": 0.17430025013562017
+      },
+      "recomputed": {
+        "precision@10": 0.06385454542846403,
+        "recall@10": 0.8804997476023715,
+        "f1@10": 0.11460944064203114
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3923029299985501,
+        "mean_query_seconds": 0.0007702903392977792,
+        "total_query_seconds": 0.1294087770020269,
+        "n_reranked_queries": 0,
+        "mean_rerank_seconds": null,
+        "mean_candidates_reranked": null,
+        "reranker_model_load_seconds": null,
+        "reranker_n_parameters": null,
+        "peak_rss_mib": 55.3,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    },
+    {
+      "name": "exp6_C_cross_encoder_train",
+      "config": "exp6_cross_encoder",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.1873509391549124,
+        "recall@1": 0.4259372422531203,
+        "f1@1": 0.23713778064816232,
+        "precision@2": 0.13702161938148016,
+        "recall@2": 0.5463256774401624,
+        "f1@2": 0.20162907400479121,
+        "precision@5": 0.08412332968223456,
+        "recall@5": 0.7049627883358935,
+        "f1@5": 0.14188181876494202
+      },
+      "recomputed": {
+        "precision@10": 0.055564723735006205,
+        "recall@10": 0.824826409779203,
+        "f1@10": 0.1003882619271264
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3976834940003755,
+        "mean_query_seconds": 1.0240149564344414,
+        "total_query_seconds": 172.03451268098615,
+        "n_reranked_queries": 153,
+        "mean_rerank_seconds": 1.1228913864836858,
+        "mean_candidates_reranked": 29.856209150326798,
+        "reranker_model_load_seconds": 6.329483667001114,
+        "reranker_n_parameters": 22713601,
+        "peak_rss_mib": 944.6,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    },
+    {
+      "name": "exp7_D_gte_reranker_train",
+      "config": "exp7_gte_reranker",
+      "split": "train",
+      "retrieval": {
+        "precision@1": 0.21960874112399825,
+        "recall@1": 0.45342800785698706,
+        "f1@1": 0.26491014523761913,
+        "precision@2": 0.15401662978852432,
+        "recall@2": 0.5677294560165353,
+        "f1@2": 0.22199000247910647,
+        "precision@5": 0.09708578029803698,
+        "recall@5": 0.7388750226551072,
+        "f1@5": 0.1619103565269994
+      },
+      "recomputed": {
+        "precision@10": 0.06090650579384153,
+        "recall@10": 0.8370789259551241,
+        "f1@10": 0.10916134456879877
+      },
+      "recompute_matches_metrics_json": true,
+      "abstention": {
+        "n_answerable": 140,
+        "n_unanswerable": 28,
+        "false_abstentions": 3,
+        "false_abstention_rate": 0.02142857142857143,
+        "correct_abstentions": 28,
+        "correct_abstention_rate": 1.0,
+        "failures_to_abstain": 0,
+        "failure_to_abstain_rate": 0.0,
+        "balanced_accuracy": 0.9892857142857143
+      },
+      "threshold": 0.27386511045480977,
+      "offset_errors": 0,
+      "operational": {
+        "n_queries": 168,
+        "index_build_seconds": 0.3673632509999152,
+        "mean_query_seconds": 7.203228241345122,
+        "total_query_seconds": 1210.1423445459804,
+        "n_reranked_queries": 153,
+        "mean_rerank_seconds": 7.907991509561862,
+        "mean_candidates_reranked": 29.856209150326798,
+        "reranker_model_load_seconds": 3.9770000759999675,
+        "reranker_n_parameters": 149605633,
+        "peak_rss_mib": 1439.9,
+        "note": "first reranked query includes lazy model loading in its query_seconds; mean_rerank_seconds excludes loading"
+      },
+      "n_answerable": 140
+    }
+  ],
+  "cases": [
+    {
+      "qid": "cuad-51b4e44436",
+      "query": "Consider the Service Agreement between Theravance Biopharma UK Limited and Brett Haumann; Can this contract be terminated for convenience, and under what conditions?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 6,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.40898983968169494,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 10,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.40898983968169494,
+          "bm25_rank": 6,
+          "rerank_score": -6.682814598083496,
+          "top1_rerank_score": -3.233170509338379
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": null,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.40898983968169494,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": 0.8339703679084778
+        }
+      ]
+    },
+    {
+      "qid": "cuad-0f789ebcf3",
+      "query": "Consider the Agency Agreement for Asset Sale between The Bon-Ton Stores, Inc., GA Retail, Inc., Tiger Capital Group, LLC, and Wilmington Savings Fund Society, FSB; Is there an anti-assignment clause in this contract?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.32717509100366415,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 9,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.32717509100366415,
+          "bm25_rank": 2,
+          "rerank_score": -5.463055610656738,
+          "top1_rerank_score": -3.276691436767578
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.32717509100366415,
+          "bm25_rank": 2,
+          "rerank_score": 0.8653853535652161,
+          "top1_rerank_score": 0.8653853535652161
+        }
+      ]
+    },
+    {
+      "qid": "cuad-05251665f3",
+      "query": "Consider the Strategic Alliance Agreement between Sucampo Pharmaceuticals, Inc., Sucampo Pharma, LLC, and R-Tech Ueno, Ltd.; What are the audit rights under this contract?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.33682942742049454,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 6,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.33682942742049454,
+          "bm25_rank": 1,
+          "rerank_score": -7.32375431060791,
+          "top1_rerank_score": -3.773137092590332
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.33682942742049454,
+          "bm25_rank": 1,
+          "rerank_score": 0.8085841536521912,
+          "top1_rerank_score": 0.8085841536521912
+        }
+      ]
+    },
+    {
+      "qid": "cuad-3fdb534e55",
+      "query": "Consider the Joint Venture Agreement between Tate & Lyle Fermentation Products Ltd. and Igene Biotechnology, Inc. for Astaxanthin Production; Are there any exceptions to competitive restrictions in this contract?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.403363690218445,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 5,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.403363690218445,
+          "bm25_rank": 4,
+          "rerank_score": -6.750161170959473,
+          "top1_rerank_score": -5.181798934936523
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.403363690218445,
+          "bm25_rank": 1,
+          "rerank_score": 0.8492109179496765,
+          "top1_rerank_score": 0.8492109179496765
+        }
+      ]
+    },
+    {
+      "qid": "cuad-5fce387d80",
+      "query": "Consider the Promotion Agreement between Depomed, Inc. and King Pharmaceuticals, Inc. for Glumetza; Does this contract include an exclusivity agreement?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 1,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.3539136241229025,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 4,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.3539136241229025,
+          "bm25_rank": 1,
+          "rerank_score": -8.01991081237793,
+          "top1_rerank_score": -5.365596294403076
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": 8,
+          "abstained": false,
+          "verifier": null,
+          "signal_value": 0.3539136241229025,
+          "bm25_rank": 17,
+          "rerank_score": 0.8256561756134033,
+          "top1_rerank_score": 0.8518446087837219
+        }
+      ]
+    },
+    {
+      "qid": "cuad-7646cba011",
+      "query": "Consider the Service Agreement between BicycleTX Ltd and Nigel Crockett for Chief Business Officer Position; How is intellectual property ownership assigned in this contract?",
+      "per_run": [
+        {
+          "run": "exp6_B_candidate_v4_train",
+          "first_gold_rank": 1,
+          "abstained": true,
+          "verifier": null,
+          "signal_value": 0.24849566176340612,
+          "bm25_rank": null,
+          "rerank_score": null,
+          "top1_rerank_score": null
+        },
+        {
+          "run": "exp6_C_cross_encoder_train",
+          "first_gold_rank": 2,
+          "abstained": true,
+          "verifier": null,
+          "signal_value": 0.24849566176340612,
+          "bm25_rank": 6,
+          "rerank_score": -3.9770658016204834,
+          "top1_rerank_score": -2.2815120220184326
+        },
+        {
+          "run": "exp7_D_gte_reranker_train",
+          "first_gold_rank": 1,
+          "abstained": true,
+          "verifier": null,
+          "signal_value": 0.24849566176340612,
+          "bm25_rank": 6,
+          "rerank_score": 0.8796055316925049,
+          "top1_rerank_score": 0.8796055316925049
+        }
+      ]
+    }
+  ],
+  "vs_first": [
+    {
+      "run": "exp6_C_cross_encoder_train",
+      "vs": "exp6_B_candidate_v4_train",
+      "n_common": 168,
+      "top1_passage_changed": 91,
+      "abstention_decision_changed": []
+    },
+    {
+      "run": "exp7_D_gte_reranker_train",
+      "vs": "exp6_B_candidate_v4_train",
+      "n_common": 168,
+      "top1_passage_changed": 98,
+      "abstention_decision_changed": []
+    }
+  ]
+}

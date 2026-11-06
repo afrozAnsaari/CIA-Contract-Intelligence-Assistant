@@ -4,7 +4,8 @@
       --query "What restrictions apply to sublicensing?" \\
       --top-k 5
 
-Subcommands: prepare-data, validate-data, build-index, search, evaluate, improve, error-analysis.
+Subcommands: prepare-data, validate-data, build-index, search, show-span, evaluate, improve,
+error-analysis, demo-check, compare.
 """
 
 from __future__ import annotations
@@ -95,7 +96,9 @@ def print_result(res, as_json: bool) -> None:
     else:
         print(f"Answered with {len(res.passages)} passage(s)  ({res.signal_text()})")
     for p in res.passages:
-        print(f"\n#{p['rank']}  score={p['score']:.4f}  document={p['document_id']}  "
+        rr = (f"  rerank={p['rerank_score']:.4f} (bm25 rank {p['bm25_rank']})"
+              if p.get("rerank_score") is not None else "")
+        print(f"\n#{p['rank']}  score={p['score']:.4f}{rr}  document={p['document_id']}  "
               f"offsets=[{p['start_offset']}, {p['end_offset']})")
         print("    " + p["text"].strip().replace("\n", "\n    "))
     print(f"\n{DISCLAIMER}")
@@ -222,6 +225,19 @@ def cmd_demo_check(a) -> int:
     return 0 if res["summary"]["C"][0] == res["summary"]["C"][1] else 1
 
 
+def cmd_compare(a) -> int:
+    from .compare import compare, format_comparison
+    c = compare(a.runs, a.k, a.extra_k, a.qids or [])
+    print(format_comparison(c))
+    if a.out:
+        from .config import resolve_path
+        p = resolve_path(a.out)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(c, indent=2), encoding="utf-8")
+        print(f"OK: comparison written to {p}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m src.cli",
                                 description="Contract Intelligence Assistant (LegalBench-RAG-mini, CUAD)")
@@ -283,6 +299,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--top-k", "-k", type=int, default=5)
     s.add_argument("--n-types", type=int, default=10, help="number of question types to sample")
     s.set_defaults(func=cmd_demo_check)
+
+    s = sub.add_parser("compare", help="compare saved evaluate runs (metrics.json + per_query.jsonl)")
+    s.add_argument("runs", nargs="+", help="evaluation output directories; the first is the reference")
+    s.add_argument("--k", type=int, nargs="+", default=[1, 2, 5], help="k values read from metrics.json")
+    s.add_argument("--extra-k", type=int, nargs="+", default=[10],
+                   help="k values (<= 10) recomputed from the stored top-10 passages")
+    s.add_argument("--qids", nargs="*", default=None, help="query ids for the per-case rank table")
+    s.add_argument("--out", default=None, help="optional JSON output path")
+    s.set_defaults(func=cmd_compare)
     return p
 
 
